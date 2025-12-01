@@ -1,0 +1,448 @@
+{% extends "layouts/app.html" %}
+
+{% block page_title %}Contents{% endblock %}
+{% block page_subtitle %}จัดการ Content ทุก Platform{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="contentsPage()">
+    <!-- Header Actions -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <!-- Filters -->
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Platform Filter -->
+            <select x-model="filters.platform" @change="loadContents()" 
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white">
+                <option value="">ทุก Platform</option>
+                <option value="tiktok">TikTok</option>
+                <option value="facebook">Facebook</option>
+                <option value="instagram">Instagram</option>
+            </select>
+            
+            <!-- Status Filter -->
+            <select x-model="filters.status" @change="loadContents()"
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white">
+                <option value="">ทุกสถานะ</option>
+                <option value="ready">Ready</option>
+                <option value="active_ad">Active Ad</option>
+                <option value="test_ad">Test Ad</option>
+                <option value="paused">Paused</option>
+                <option value="expired">Expired</option>
+            </select>
+            
+            <!-- Content Type Filter -->
+            <select x-model="filters.content_type" @change="loadContents()"
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white">
+                <option value="">ทุกประเภท</option>
+                <option value="sale">Sale</option>
+                <option value="review">Review</option>
+                <option value="branding">Branding</option>
+                <option value="ecom">E-commerce</option>
+            </select>
+            
+            <!-- Search -->
+            <div class="relative">
+                <input type="text" x-model="filters.search" @input.debounce.500ms="loadContents()"
+                       placeholder="ค้นหา..."
+                       class="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white w-64">
+                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="flex items-center gap-3">
+            <button @click="syncContent()" :disabled="syncing"
+                    class="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-xl transition-colors disabled:opacity-50">
+                <svg class="w-5 h-5" :class="syncing && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                <span x-text="syncing ? 'กำลัง Sync...' : 'Sync Content'"></span>
+            </button>
+            
+            <button @click="recalculatePFM()" :disabled="calculating"
+                    class="flex items-center gap-2 px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white rounded-xl transition-colors disabled:opacity-50">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+                <span>คำนวณ PFM</span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-800" x-text="stats.tiktok"></p>
+                    <p class="text-sm text-gray-500">TikTok</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-800" x-text="stats.facebook"></p>
+                    <p class="text-sm text-gray-500">Facebook</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-800" x-text="stats.instagram"></p>
+                    <p class="text-sm text-gray-500">Instagram</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-800" x-text="stats.avg_pfm.toFixed(2)"></p>
+                    <p class="text-sm text-gray-500">Avg PFM</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Content Table -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <!-- Loading -->
+        <div x-show="loading" class="p-8 text-center">
+            <svg class="animate-spin w-8 h-8 text-primary-500 mx-auto" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="text-gray-500 mt-2">กำลังโหลด...</p>
+        </div>
+        
+        <!-- Table -->
+        <div x-show="!loading" class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Content</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Platform</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Creator</th>
+                        <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Views</th>
+                        <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Engagement</th>
+                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">PFM</th>
+                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <template x-for="content in contents" :key="content.id">
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <!-- Content Info -->
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
+                                        <img :src="content.thumbnail_url || '/static/placeholder.png'" 
+                                             :alt="content.caption"
+                                             class="w-full h-full object-cover"
+                                             onerror="this.src='/static/placeholder.png'">
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-medium text-gray-800 truncate max-w-xs" 
+                                           x-text="content.caption ? content.caption.substring(0, 50) + '...' : 'No caption'"></p>
+                                        <p class="text-xs text-gray-500 mt-1" x-text="formatDate(content.platform_created_at)"></p>
+                                    </div>
+                                </div>
+                            </td>
+                            
+                            <!-- Platform -->
+                            <td class="px-6 py-4">
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                                      :class="{
+                                          'bg-gray-900 text-white': content.platform === 'tiktok',
+                                          'bg-blue-100 text-blue-700': content.platform === 'facebook',
+                                          'bg-pink-100 text-pink-700': content.platform === 'instagram'
+                                      }">
+                                    <span x-text="content.platform.charAt(0).toUpperCase() + content.platform.slice(1)"></span>
+                                </span>
+                            </td>
+                            
+                            <!-- Creator -->
+                            <td class="px-6 py-4">
+                                <p class="text-sm text-gray-800" x-text="content.creator_name || '-'"></p>
+                            </td>
+                            
+                            <!-- Views -->
+                            <td class="px-6 py-4 text-right">
+                                <p class="text-sm font-medium text-gray-800" x-text="formatNumber(content.views)"></p>
+                            </td>
+                            
+                            <!-- Engagement -->
+                            <td class="px-6 py-4 text-right">
+                                <div class="text-xs text-gray-500 space-y-0.5">
+                                    <p>❤️ <span x-text="formatNumber(content.likes)"></span></p>
+                                    <p>💬 <span x-text="formatNumber(content.comments)"></span></p>
+                                    <p>🔄 <span x-text="formatNumber(content.shares)"></span></p>
+                                </div>
+                            </td>
+                            
+                            <!-- PFM Score -->
+                            <td class="px-6 py-4 text-center">
+                                <span class="inline-flex items-center justify-center w-12 h-12 rounded-full text-sm font-bold"
+                                      :class="{
+                                          'bg-green-100 text-green-700': content.pfm_score >= 1.5,
+                                          'bg-yellow-100 text-yellow-700': content.pfm_score >= 1 && content.pfm_score < 1.5,
+                                          'bg-orange-100 text-orange-700': content.pfm_score >= 0.5 && content.pfm_score < 1,
+                                          'bg-red-100 text-red-700': content.pfm_score < 0.5
+                                      }"
+                                      x-text="content.pfm_score ? content.pfm_score.toFixed(2) : '0.00'">
+                                </span>
+                            </td>
+                            
+                            <!-- Status -->
+                            <td class="px-6 py-4 text-center">
+                                <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium"
+                                      :class="{
+                                          'bg-green-100 text-green-700': content.status === 'active_ad',
+                                          'bg-blue-100 text-blue-700': content.status === 'ready',
+                                          'bg-yellow-100 text-yellow-700': content.status === 'test_ad',
+                                          'bg-gray-100 text-gray-700': content.status === 'paused',
+                                          'bg-red-100 text-red-700': content.status === 'expired'
+                                      }"
+                                      x-text="content.status">
+                                </span>
+                            </td>
+                            
+                            <!-- Actions -->
+                            <td class="px-6 py-4 text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                    <a :href="content.url" target="_blank" 
+                                       class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                       title="View on Platform">
+                                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                                        </svg>
+                                    </a>
+                                    <button @click="editContent(content)" 
+                                            class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                            title="Edit">
+                                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    
+                    <!-- Empty State -->
+                    <tr x-show="contents.length === 0 && !loading">
+                        <td colspan="8" class="px-6 py-12 text-center">
+                            <svg class="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                            </svg>
+                            <p class="text-gray-500">ไม่พบ Content</p>
+                            <p class="text-gray-400 text-sm mt-1">ลอง Sync Content จาก Platform หรือเปลี่ยน Filter</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div x-show="!loading && totalPages > 1" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+            <p class="text-sm text-gray-500">
+                แสดง <span x-text="((currentPage - 1) * pageSize) + 1"></span> - 
+                <span x-text="Math.min(currentPage * pageSize, totalItems)"></span> 
+                จาก <span x-text="totalItems"></span> รายการ
+            </p>
+            <div class="flex items-center gap-2">
+                <button @click="currentPage--; loadContents()" :disabled="currentPage === 1"
+                        class="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                    ก่อนหน้า
+                </button>
+                <span class="px-3 py-1.5 text-sm text-gray-600">
+                    หน้า <span x-text="currentPage"></span> / <span x-text="totalPages"></span>
+                </span>
+                <button @click="currentPage++; loadContents()" :disabled="currentPage === totalPages"
+                        class="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                    ถัดไป
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div x-show="toast.show" x-transition
+         class="fixed bottom-6 right-6 px-6 py-3 rounded-xl shadow-lg text-white"
+         :class="toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'">
+        <span x-text="toast.message"></span>
+    </div>
+</div>
+
+<script>
+function contentsPage() {
+    return {
+        contents: [],
+        loading: true,
+        syncing: false,
+        calculating: false,
+        currentPage: 1,
+        pageSize: 20,
+        totalItems: 0,
+        totalPages: 1,
+        filters: {
+            platform: '',
+            status: '',
+            content_type: '',
+            search: ''
+        },
+        stats: {
+            tiktok: 0,
+            facebook: 0,
+            instagram: 0,
+            avg_pfm: 0
+        },
+        toast: {
+            show: false,
+            message: '',
+            type: 'success'
+        },
+        
+        init() {
+            this.loadContents();
+            this.loadStats();
+        },
+        
+        async loadContents() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams({
+                    page: this.currentPage,
+                    page_size: this.pageSize,
+                    ...this.filters
+                });
+                
+                const response = await fetch(`/api/v1/contents?${params}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.contents = data.data;
+                    this.totalItems = data.total;
+                    this.totalPages = data.pages;
+                }
+            } catch (err) {
+                console.error('Error loading contents:', err);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async loadStats() {
+            try {
+                const response = await fetch('/api/v1/contents/stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.stats = data.data;
+                }
+            } catch (err) {
+                console.error('Error loading stats:', err);
+            }
+        },
+        
+        async syncContent() {
+            this.syncing = true;
+            try {
+                const response = await fetch('/api/v1/contents/sync', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast(`Sync สำเร็จ! ${data.data.synced} รายการ`, 'success');
+                    this.loadContents();
+                    this.loadStats();
+                } else {
+                    this.showToast(data.message || 'Sync ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.syncing = false;
+            }
+        },
+        
+        async recalculatePFM() {
+            this.calculating = true;
+            try {
+                const response = await fetch('/api/v1/contents/recalculate-pfm', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast(`อัพเดท PFM สำเร็จ! ${data.data.updated} รายการ`, 'success');
+                    this.loadContents();
+                    this.loadStats();
+                } else {
+                    this.showToast('คำนวณ PFM ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.calculating = false;
+            }
+        },
+        
+        editContent(content) {
+            // TODO: Open edit modal
+            console.log('Edit content:', content);
+        },
+        
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => { this.toast.show = false; }, 3000);
+        },
+        
+        formatNumber(num) {
+            if (!num) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('th-TH', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+    }
+}
+</script>
+{% endblock %}
+

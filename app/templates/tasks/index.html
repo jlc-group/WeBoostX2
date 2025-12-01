@@ -1,0 +1,423 @@
+{% extends "layouts/app.html" %}
+
+{% block page_title %}Jobs & Sync Status{% endblock %}
+{% block page_subtitle %}สถานะการรันงาน Background ของระบบ{% endblock %}
+
+{% block content %}
+<div x-data="tasksPage()" x-init="init()" class="space-y-6">
+  <!-- Filters & Summary -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Summary card + Run Now -->
+    <div class="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-gray-800">ภาพรวมล่าสุด</h3>
+        <button
+          @click="refreshAll()"
+          class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 hover:bg-gray-50"
+        >
+          <svg
+            class="w-4 h-4"
+            :class="loading && 'animate-spin'"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9M20 20v-5h-.581m-15.357-2a8.003 8.003 0 0015.357 2"
+            />
+          </svg>
+          รีเฟรช
+        </button>
+      </div>
+      <div class="grid grid-cols-3 gap-3 text-xs">
+        <div>
+          <p class="text-gray-500 mb-1">ทั้งหมด</p>
+          <p class="text-lg font-semibold text-gray-800" x-text="summary.total_logs"></p>
+        </div>
+        <div>
+          <p class="text-gray-500 mb-1">สำเร็จ</p>
+          <p class="text-lg font-semibold text-emerald-600" x-text="summary.completed"></p>
+        </div>
+        <div>
+          <p class="text-gray-500 mb-1">ล้มเหลว</p>
+          <p class="text-lg font-semibold text-red-500" x-text="summary.failed"></p>
+        </div>
+      </div>
+      <!-- Run Now buttons -->
+      <div class="pt-2 border-t border-gray-100 space-y-2">
+        <p class="text-[11px] text-gray-500 mb-1">Run now (manual trigger)</p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            @click="runTask('sync_tiktok_content')"
+            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Sync TikTok Content
+          </button>
+          <button
+            @click="runTask('refresh_tiktok_organic')"
+            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9M20 20v-5h-.581m-15.357-2a8.003 8.003 0 0015.357 2"/>
+            </svg>
+            Refresh TikTok Organic
+          </button>
+          <button
+            @click="runTask('sync_all_content')"
+            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9M20 20v-5h-.581m-15.357-2a8.003 8.003 0 0015.357 2"/>
+            </svg>
+            Sync All Content
+          </button>
+          <button
+            @click="runTask('sync_all_ads')"
+            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            Sync All Ads
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-2xl shadow-sm p-5 lg:col-span-2">
+      <div class="flex flex-col md:flex-row md:items-end gap-3">
+        <div class="flex-1">
+          <label class="block text-xs font-medium text-gray-600 mb-1"
+            >Task Name</label
+          >
+          <input
+            type="text"
+            x-model="filters.task_name"
+            placeholder="เช่น sync_all_content"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+          />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1"
+            >Status</label
+          >
+          <select
+            x-model="filters.status"
+            class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+          >
+            <option value="">ทั้งหมด</option>
+            <option value="completed">COMPLETED</option>
+            <option value="running">RUNNING</option>
+            <option value="failed">FAILED</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1"
+            >จำนวนรายการ</label
+          >
+          <select
+            x-model.number="filters.limit"
+            class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+          >
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+        <div>
+          <button
+            @click="loadLogs()"
+            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2v-7H3v7a2 2 0 002 2z"
+              />
+            </svg>
+            กรอง
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sync Status -->
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold text-gray-800">Sync Status</h3>
+      <p class="text-xs text-gray-400">
+        แสดงสถานะล่าสุดของการ sync content / ads / sales ฯลฯ
+      </p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-100 text-sm">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Entity
+            </th>
+            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Platform
+            </th>
+            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Last Sync
+            </th>
+            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Status
+            </th>
+            <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Items
+            </th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <template x-for="row in syncStatus" :key="row.id">
+            <tr>
+              <td class="px-3 py-2 text-gray-800" x-text="row.entity_type"></td>
+              <td class="px-3 py-2 text-gray-600" x-text="row.platform || '-'"></td>
+              <td class="px-3 py-2 text-gray-600">
+                <span x-text="formatDateTime(row.last_sync_at) || '-'"></span>
+              </td>
+              <td class="px-3 py-2">
+                <span
+                  class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium"
+                  :class="statusBadgeClass(row.last_sync_status)"
+                  x-text="row.last_sync_status || '-'"
+                ></span>
+              </td>
+              <td class="px-3 py-2 text-right text-gray-700">
+                <span
+                  x-text="row.last_items_synced !== null ? row.last_items_synced : row.total_items"
+                ></span>
+              </td>
+            </tr>
+          </template>
+          <tr x-show="!syncStatus.length">
+            <td colspan="5" class="px-3 py-4 text-center text-xs text-gray-500">
+              ยังไม่มีข้อมูล Sync Status
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Task Logs -->
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold text-gray-800">Task Logs</h3>
+      <p class="text-xs text-gray-400">
+        แสดงประวัติการรันงานล่าสุด (เรียงจากใหม่ไปเก่า)
+      </p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-100 text-sm">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              เวลาเริ่ม
+            </th>
+            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Task
+            </th>
+            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Type
+            </th>
+            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              สถานะ
+            </th>
+            <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Duration (s)
+            </th>
+            <th class="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Items
+            </th>
+            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Message
+            </th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <template x-for="log in logs" :key="log.id">
+            <tr>
+              <td class="px-3 py-2 text-gray-600" x-text="formatDateTime(log.started_at)"></td>
+              <td class="px-3 py-2 text-gray-800" x-text="log.task_name"></td>
+              <td class="px-3 py-2 text-gray-600" x-text="log.task_type || '-'"></td>
+              <td class="px-3 py-2">
+                <span
+                  class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium"
+                  :class="statusBadgeClass(log.status)"
+                  x-text="log.status"
+                ></span>
+              </td>
+              <td class="px-3 py-2 text-right text-gray-700" x-text="log.duration_seconds || '-'"></td>
+              <td class="px-3 py-2 text-right text-gray-700">
+                <span x-text="log.items_success"></span>
+                <span class="text-gray-400">/</span>
+                <span x-text="log.items_processed"></span>
+              </td>
+              <td class="px-3 py-2 text-gray-600 max-w-xs truncate" :title="log.error_message || log.message">
+                <span x-text="log.error_message || log.message || '-'"></span>
+              </td>
+            </tr>
+          </template>
+          <tr x-show="!logs.length">
+            <td colspan="7" class="px-3 py-4 text-center text-xs text-gray-500">
+              ยังไม่มี Task Logs
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  function tasksPage() {
+    return {
+      loading: false,
+      logs: [],
+      syncStatus: [],
+      filters: {
+        task_name: "",
+        status: "",
+        limit: 50,
+      },
+      summary: {
+        total_logs: 0,
+        completed: 0,
+        failed: 0,
+      },
+      runningRequest: false,
+
+      async init() {
+        await this.refreshAll();
+      },
+
+      async refreshAll() {
+        this.loading = true;
+        await Promise.all([this.loadSyncStatus(), this.loadLogs()]);
+        this.loading = false;
+      },
+
+      async loadSyncStatus() {
+        try {
+          const res = await fetch("/api/v1/tasks/sync-status", {
+            headers: this.getAuthHeaders(),
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.syncStatus = data.data || [];
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      },
+
+      async loadLogs() {
+        try {
+          const params = new URLSearchParams();
+          params.set("limit", this.filters.limit);
+          if (this.filters.task_name) {
+            params.set("task_name", this.filters.task_name);
+          }
+          if (this.filters.status) {
+            params.set("status", this.filters.status);
+          }
+
+          const res = await fetch(`/api/v1/tasks/logs?${params.toString()}`, {
+            headers: this.getAuthHeaders(),
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.logs = data.data || [];
+            this.summary.total_logs = data.total || this.logs.length;
+            this.summary.completed = this.logs.filter(
+              (l) => l.status === "completed"
+            ).length;
+            this.summary.failed = this.logs.filter(
+              (l) => l.status === "failed"
+            ).length;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      },
+
+      getAuthHeaders() {
+        const token = localStorage.getItem("access_token");
+        return {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        };
+      },
+
+      formatDateTime(value) {
+        if (!value) return "";
+        const d = new Date(value);
+        return d.toLocaleString("th-TH", {
+          year: "2-digit",
+          month: "short",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      },
+
+      statusBadgeClass(status) {
+        switch (status) {
+          case "completed":
+            return "bg-emerald-50 text-emerald-700";
+          case "running":
+            return "bg-blue-50 text-blue-700";
+          case "failed":
+            return "bg-red-50 text-red-700";
+          default:
+            return "bg-gray-100 text-gray-600";
+        }
+      },
+
+      async runTask(taskName) {
+        if (this.runningRequest) return;
+        this.runningRequest = true;
+        try {
+          const res = await fetch("/api/v1/tasks/run", {
+            method: "POST",
+            headers: this.getAuthHeaders(),
+            body: JSON.stringify({ task_name: taskName }),
+          });
+          const data = await res.json();
+          if (!data.success) {
+            console.error("Run task failed:", data.message || data.detail);
+            alert(data.message || "ไม่สามารถรัน Task ได้");
+          } else {
+            await this.refreshAll();
+          }
+        } catch (e) {
+          console.error("Run task error:", e);
+          alert("เกิดข้อผิดพลาดระหว่างรัน Task");
+        } finally {
+          this.runningRequest = false;
+        }
+      },
+    };
+  }
+</script>
+{% endblock %}
+
+

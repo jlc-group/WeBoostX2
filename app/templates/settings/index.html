@@ -1,0 +1,811 @@
+{% extends "layouts/app.html" %} {% block page_title %}Settings{% endblock %} {%
+block page_subtitle %}ตั้งค่า Platform และ Ad Accounts{% endblock %} {% block
+content %}
+<div x-data="settingsPage()" x-init="init()" class="space-y-6">
+  <!-- Header -->
+  <div
+    class="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+  >
+    <div>
+      <h3 class="text-lg font-semibold text-gray-800">TikTok Settings</h3>
+      <p class="text-sm text-gray-500">
+        ตั้งค่า TikTok Advertiser IDs (Ad Accounts) ที่จะใช้ในระบบ WeBoostX 2.0
+      </p>
+    </div>
+    <div class="flex items-center gap-3">
+      <button
+        @click="loadAdAccounts()"
+        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        <svg
+          class="w-4 h-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9M20 20v-5h-.581m-15.357-2a8.003 8.003 0 0015.357 2"
+          />
+        </svg>
+        รีเฟรช
+      </button>
+    </div>
+  </div>
+
+  <!-- Alerts -->
+  <template x-if="error">
+    <div
+      class="p-4 rounded-xl bg-red-50 border border-red-100 text-sm text-red-700 flex items-start gap-2"
+    >
+      <svg
+        class="w-5 h-5 mt-0.5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 9v2m0 4h.01M4.93 4.93l14.14 14.14M12 2a10 10 0 00-7.07 17.07L19.07 4.93A9.956 9.956 0 0012 2z"
+        />
+      </svg>
+      <span x-text="error"></span>
+    </div>
+  </template>
+
+  <template x-if="success">
+    <div
+      class="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-sm text-emerald-700 flex items-start gap-2"
+    >
+      <svg
+        class="w-5 h-5 mt-0.5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
+      </svg>
+      <span x-text="success"></span>
+    </div>
+  </template>
+
+  <!-- Layout: left TikTok API config, right Ad Accounts -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- TikTok API Config + Official Channels + Content Sync -->
+    <div class="space-y-4">
+      <div class="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+        <div>
+          <h4 class="text-sm font-semibold text-gray-800 mb-1">
+            TikTok API Config
+          </h4>
+          <p class="text-xs text-gray-500">
+            ค่า config เหล่านี้จะถูกเก็บในฐานข้อมูล (ตาราง
+            <code>app_settings</code>) และใช้แทนค่าที่เคยอยู่ในไฟล์
+            <code>.env</code>
+          </p>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1"
+              >Business ID</label
+            >
+            <input
+              type="text"
+              x-model="tiktokConfig.business_id"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              placeholder="เช่น -0000DLo9r7HZJ9R8dg6NPzgqC-DQCU9m_KE"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1"
+              >Client ID</label
+            >
+            <input
+              type="text"
+              x-model="tiktokConfig.client_id"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              placeholder="TIKTOK_CLIENT_ID"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1"
+              >Client Secret</label
+            >
+            <input
+              type="password"
+              x-model="tiktokConfig.client_secret"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              placeholder="TIKTOK_CLIENT_SECRET"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1"
+              >Refresh Token</label
+            >
+            <input
+              type="password"
+              x-model="tiktokConfig.refresh_token"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              placeholder="TIKTOK_REFRESH_TOKEN"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1"
+              >Direct Access Token (ไม่บังคับ)</label
+            >
+            <input
+              type="password"
+              x-model="tiktokConfig.direct_access_token"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              placeholder="ถ้าเว้นว่าง ระบบจะใช้ refresh token แทน"
+            />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+          <p class="text-[11px] text-gray-500">
+            แนะนำให้ใช้
+            <span class="font-semibold"
+              >Client ID + Secret + Refresh Token</span
+            >
+            เพื่อให้ระบบขอ access token สดเองอัตโนมัติ
+          </p>
+          <button
+            @click="saveTikTokConfig()"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium disabled:opacity-50"
+            :disabled="savingConfig"
+          >
+            <svg
+              x-show="savingConfig"
+              class="w-4 h-4 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <span
+              x-text="savingConfig ? 'กำลังบันทึก...' : 'บันทึก TikTok Config'"
+            ></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Official Channels -->
+      <div class="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+        <div>
+          <h4 class="text-sm font-semibold text-gray-800 mb-1">
+            Official Channels
+          </h4>
+          <p class="text-xs text-gray-500">
+            รายชื่อ TikTok Channel ของบริษัท (Official) ที่ใช้แยกจาก Influencer
+            ปกติ เช่น <code>julaherbthailand</code>,
+            <code>julaherbthailandshop</code> เป็นต้น
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1"
+            >รายชื่อช่อง (ช่องละ 1 บรรทัด)</label
+          >
+          <textarea
+            x-model="tiktokChannelsText"
+            rows="5"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500 font-mono"
+            placeholder="julaherbthailand&#10;julaherbthailandshop&#10;jh.beauty.club&#10;acnelabjulaherb"
+          ></textarea>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+          <p class="text-[11px] text-gray-500">
+            ระบบจะใช้ list นี้ในการกำหนดว่า content มาจาก
+            <span class="font-semibold">PAGE (Official)</span> หรือ
+            <span class="font-semibold">INFLUENCER</span>
+          </p>
+          <button
+            @click="saveTikTokChannels()"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium disabled:opacity-50"
+            :disabled="savingChannels"
+          >
+            <svg
+              x-show="savingChannels"
+              class="w-4 h-4 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <span
+              x-text="savingChannels ? 'กำลังบันทึก...' : 'บันทึก Official Channels'"
+            ></span>
+          </button>
+        </div>
+
+        <!-- Content Sync Settings -->
+        <div class="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+          <div>
+            <h4 class="text-sm font-semibold text-gray-800 mb-1">
+              Content Sync Settings
+            </h4>
+            <p class="text-xs text-gray-500">
+              ตั้งค่าการ refresh ค่า Organic ของ TikTok Content เพื่อจับ viral
+              คลิปโดยไม่ต้องยิงแอด
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div>
+              <label class="block font-medium text-gray-600 mb-1"
+                >Organic Refresh Max Days</label
+              >
+              <input
+                type="number"
+                min="1"
+                max="30"
+                x-model.number="contentSyncConfig.organic_refresh_max_days"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              />
+              <p class="mt-1 text-[11px] text-gray-400">
+                รีเฟรชเฉพาะ content ที่อายุไม่เกินจำนวนวันที่กำหนด (เช่น 7 วัน)
+              </p>
+            </div>
+            <div>
+              <label class="block font-medium text-gray-600 mb-1"
+                >Refresh Interval (mins)</label
+              >
+              <input
+                type="number"
+                min="5"
+                max="720"
+                x-model.number="contentSyncConfig.organic_refresh_interval_minutes"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              />
+              <p class="mt-1 text-[11px] text-gray-400">
+                ระยะเวลาห่างกันระหว่างแต่ละรอบของ Organic refresh (หน่วย: นาที)
+              </p>
+            </div>
+            <div>
+              <label class="block font-medium text-gray-600 mb-1"
+                >Max Content Per Job</label
+              >
+              <input
+                type="number"
+                min="10"
+                max="1000"
+                x-model.number="contentSyncConfig.max_content_per_job"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              />
+              <p class="mt-1 text-[11px] text-gray-400">
+                จำกัดจำนวน content สูงสุดที่ refresh ต่อรอบ เพื่อลดโหลด
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-2">
+            <p class="text-[11px] text-gray-500">
+              การเปลี่ยนค่าพวกนี้มีผลกับ job ฝั่ง backend ที่รันอัตโนมัติ
+              (และปุ่ม Run now)
+            </p>
+            <button
+              @click="saveContentSyncConfig()"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium disabled:opacity-50"
+              :disabled="savingContentSync"
+            >
+              <svg
+                x-show="savingContentSync"
+                class="w-4 h-4 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              <span
+                x-text="
+                 savingContentSync
+                   ? 'กำลังบันทึก...'
+                   : 'บันทึก Content Sync Config'
+               "
+              ></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TikTok Ad Accounts -->
+    <div class="lg:col-span-2 space-y-4">
+      <!-- Add form -->
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h4 class="text-sm font-semibold text-gray-800 mb-3">
+          เพิ่ม TikTok Advertiser ID
+        </h4>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1"
+              >ชื่อบัญชี (เช่น IDAC MAIN)</label
+            >
+            <input
+              type="text"
+              x-model="form.name"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              placeholder="เช่น IDAC MAIN"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1"
+              >Advertiser ID</label
+            >
+            <input
+              type="text"
+              x-model="form.external_account_id"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              placeholder="ตัวเลขจาก TikTok Ads Manager"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1"
+              >Timezone (ไม่บังคับ)</label
+            >
+            <input
+              type="text"
+              x-model="form.timezone"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500"
+              placeholder="Asia/Bangkok"
+            />
+          </div>
+        </div>
+        <div class="mt-4 flex items-center justify-between">
+          <p class="text-xs text-gray-500">
+            Platform จะถูกตั้งเป็น
+            <span class="font-semibold">TikTok</span> อัตโนมัติ
+          </p>
+          <button
+            @click="createAdAccount()"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium disabled:opacity-50"
+            :disabled="saving"
+          >
+            <svg
+              x-show="saving"
+              class="w-4 h-4 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <span
+              x-text="saving ? 'กำลังบันทึก...' : 'เพิ่ม Advertiser ID'"
+            ></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div
+          class="px-4 py-3 border-b border-gray-100 flex items-center justify-between"
+        >
+          <h4 class="text-sm font-semibold text-gray-800">
+            TikTok Ad Accounts
+          </h4>
+          <span class="text-xs text-gray-400" x-show="loading"
+            >กำลังโหลด...</span
+          >
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-100">
+            <thead class="bg-gray-50">
+              <tr>
+                <th
+                  class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                >
+                  ชื่อบัญชี
+                </th>
+                <th
+                  class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                >
+                  Advertiser ID
+                </th>
+                <th
+                  class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                >
+                  สถานะ
+                </th>
+                <th
+                  class="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                >
+                  Timezone
+                </th>
+                <th
+                  class="px-4 py-2 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                >
+                  จัดการ
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              class="bg-white divide-y divide-gray-100"
+              x-show="tiktokAccounts.length"
+            >
+              <template x-for="acc in tiktokAccounts" :key="acc.id">
+                <tr class="hover:bg-gray-50">
+                  <td
+                    class="px-4 py-3 text-sm text-gray-800"
+                    x-text="acc.name"
+                  ></td>
+                  <td
+                    class="px-4 py-3 text-sm font-mono text-gray-700"
+                    x-text="acc.external_account_id"
+                  ></td>
+                  <td class="px-4 py-3 text-sm">
+                    <select
+                      x-model="acc.status"
+                      @change="updateAdAccount(acc)"
+                      class="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-primary-500"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="suspended">Suspended</option>
+                    </select>
+                  </td>
+                  <td
+                    class="px-4 py-3 text-sm text-gray-600"
+                    x-text="acc.timezone || '-'"
+                  ></td>
+                  <td class="px-4 py-3 text-right text-xs text-gray-400">
+                    ID: <span x-text="acc.id"></span>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="!tiktokAccounts.length && !loading">
+                <td
+                  colspan="5"
+                  class="px-4 py-6 text-center text-sm text-gray-500"
+                >
+                  ยังไม่มี TikTok Ad Accounts ในระบบ
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function settingsPage() {
+    return {
+      loading: false,
+      saving: false,
+      savingConfig: false,
+      savingChannels: false,
+      error: null,
+      success: null,
+      tiktokConfig: {
+        business_id: "",
+        client_id: "",
+        client_secret: "",
+        refresh_token: "",
+        direct_access_token: "",
+      },
+      tiktokAccounts: [],
+      tiktokChannelsText: "",
+      contentSyncConfig: {
+        organic_refresh_max_days: 7,
+        organic_refresh_interval_minutes: 60,
+        max_content_per_job: 100,
+      },
+      savingContentSync: false,
+      form: {
+        name: "",
+        external_account_id: "",
+        timezone: "Asia/Bangkok",
+      },
+
+      init() {
+        this.ensureAuth();
+        this.loadTikTokConfig();
+        this.loadTikTokChannels();
+        this.loadContentSyncConfig();
+        this.loadAdAccounts();
+      },
+
+      ensureAuth() {
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+          window.location.href = "/login";
+        }
+      },
+
+      async loadTikTokConfig() {
+        this.error = null;
+        try {
+          const res = await fetch("/api/v1/settings/tiktok-config", {
+            headers: this.getAuthHeaders(),
+          });
+          const data = await res.json();
+          if (data.success && data.data) {
+            this.tiktokConfig = data.data;
+          } else if (!data.success) {
+            this.error = data.detail || "โหลด TikTok config ไม่สำเร็จ";
+          }
+        } catch (e) {
+          console.error(e);
+          this.error = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้";
+        }
+      },
+
+      async saveTikTokConfig() {
+        this.savingConfig = true;
+        this.error = null;
+        this.success = null;
+        try {
+          const res = await fetch("/api/v1/settings/tiktok-config", {
+            method: "PUT",
+            headers: this.getAuthHeaders(),
+            body: JSON.stringify(this.tiktokConfig),
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.success = "บันทึก TikTok API Config สำเร็จ";
+            this.tiktokConfig = data.data;
+          } else {
+            this.error = data.detail || "บันทึก TikTok API Config ไม่สำเร็จ";
+          }
+        } catch (e) {
+          console.error(e);
+          this.error = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้";
+        } finally {
+          this.savingConfig = false;
+        }
+      },
+
+      async loadTikTokChannels() {
+        this.error = null;
+        try {
+          const res = await fetch("/api/v1/settings/tiktok-channels", {
+            headers: this.getAuthHeaders(),
+          });
+          const data = await res.json();
+          if (data.success && data.data) {
+            const channels = data.data.channels || [];
+            this.tiktokChannelsText = channels.join("\n");
+          } else if (!data.success) {
+            this.error = data.detail || "โหลด Official Channels ไม่สำเร็จ";
+          }
+        } catch (e) {
+          console.error(e);
+          this.error = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้";
+        }
+      },
+
+      async saveTikTokChannels() {
+        this.savingChannels = true;
+        this.error = null;
+        this.success = null;
+        try {
+          const lines = this.tiktokChannelsText.split(/\r?\n/);
+          const channels = lines
+            .map((l) => l.trim())
+            .filter((l) => l.length > 0);
+
+          const res = await fetch("/api/v1/settings/tiktok-channels", {
+            method: "PUT",
+            headers: this.getAuthHeaders(),
+            body: JSON.stringify({ channels }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.success = "บันทึก Official Channels สำเร็จ";
+            this.tiktokChannelsText = (data.data.channels || []).join("\n");
+          } else {
+            this.error = data.detail || "บันทึก Official Channels ไม่สำเร็จ";
+          }
+        } catch (e) {
+          console.error(e);
+          this.error = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้";
+        } finally {
+          this.savingChannels = false;
+        }
+      },
+
+      async loadContentSyncConfig() {
+        try {
+          const res = await fetch("/api/v1/tasks/config/content-sync", {
+            headers: this.getAuthHeaders(),
+          });
+          const data = await res.json();
+          if (data.success && data.data) {
+            this.contentSyncConfig = data.data;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      },
+
+      async saveContentSyncConfig() {
+        this.savingContentSync = true;
+        this.error = null;
+        this.success = null;
+        try {
+          const res = await fetch("/api/v1/tasks/config/content-sync", {
+            method: "PUT",
+            headers: this.getAuthHeaders(),
+            body: JSON.stringify(this.contentSyncConfig),
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.success = "บันทึก Content Sync Config สำเร็จ";
+            this.contentSyncConfig = data.data;
+          } else {
+            this.error = data.detail || "บันทึก Content Sync Config ไม่สำเร็จ";
+          }
+        } catch (e) {
+          console.error(e);
+          this.error = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้";
+        } finally {
+          this.savingContentSync = false;
+        }
+      },
+
+      getAuthHeaders() {
+        const token = localStorage.getItem("access_token");
+        return {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        };
+      },
+
+      async loadAdAccounts() {
+        this.loading = true;
+        this.error = null;
+        this.success = null;
+
+        try {
+          const res = await fetch(
+            "/api/v1/settings/ad-accounts?platform=tiktok",
+            {
+              headers: this.getAuthHeaders(),
+            }
+          );
+          const data = await res.json();
+          if (data.success) {
+            this.tiktokAccounts = data.data;
+          } else {
+            this.error = data.detail || "โหลดข้อมูลไม่สำเร็จ";
+          }
+        } catch (e) {
+          console.error(e);
+          this.error = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้";
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async createAdAccount() {
+        if (!this.form.name || !this.form.external_account_id) {
+          this.error = "กรุณากรอกชื่อบัญชีและ Advertiser ID ให้ครบ";
+          return;
+        }
+
+        this.saving = true;
+        this.error = null;
+        this.success = null;
+
+        try {
+          const payload = {
+            name: this.form.name,
+            external_account_id: this.form.external_account_id,
+            platform: "tiktok",
+            status: "active",
+            timezone: this.form.timezone || "Asia/Bangkok",
+            currency: "THB",
+          };
+
+          const res = await fetch("/api/v1/settings/ad-accounts", {
+            method: "POST",
+            headers: this.getAuthHeaders(),
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.success = "เพิ่ม TikTok Ad Account สำเร็จ";
+            this.form.name = "";
+            this.form.external_account_id = "";
+            this.loadAdAccounts();
+          } else {
+            this.error = data.detail || "บันทึกไม่สำเร็จ";
+          }
+        } catch (e) {
+          console.error(e);
+          this.error = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้";
+        } finally {
+          this.saving = false;
+        }
+      },
+
+      async updateAdAccount(acc) {
+        this.error = null;
+        this.success = null;
+        try {
+          const payload = {
+            status: acc.status,
+            timezone: acc.timezone,
+          };
+          const res = await fetch(`/api/v1/settings/ad-accounts/${acc.id}`, {
+            method: "PUT",
+            headers: this.getAuthHeaders(),
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.success = "อัปเดตสถานะบัญชีสำเร็จ";
+          } else {
+            this.error = data.detail || "อัปเดตไม่สำเร็จ";
+          }
+        } catch (e) {
+          console.error(e);
+          this.error = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้";
+        }
+      },
+    };
+  }
+</script>
+{% endblock %}
