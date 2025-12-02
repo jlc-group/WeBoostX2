@@ -42,7 +42,8 @@
         }
     </script>
     
-    <!-- Alpine.js -->
+    <!-- Alpine.js + Collapse plugin -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
     <!-- Heroicons -->
@@ -75,6 +76,14 @@
         
         .sidebar-link.active {
             @apply bg-gradient-to-r from-primary-500/20 to-accent-500/20 text-white border-l-4 border-primary-400;
+        }
+        
+        .sidebar-link-sub {
+            @apply flex items-center gap-2 px-4 py-2 rounded-lg text-gray-400 text-sm hover:bg-white/10 hover:text-white transition-all duration-200;
+        }
+        
+        .sidebar-link-sub.active {
+            @apply bg-white/10 text-white;
         }
         
         .stat-card {

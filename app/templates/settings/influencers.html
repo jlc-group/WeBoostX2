@@ -1,0 +1,358 @@
+{% extends "layouts/app.html" %}
+
+{% block page_title %}จัดการ Influencers{% endblock %}
+{% block page_subtitle %}Master Data - รายชื่อ Influencer และค่าจ้าง{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="influencersPage()">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <!-- Search -->
+            <div class="relative">
+                <input type="text" x-model="search" @input.debounce.300ms="loadInfluencers()"
+                       placeholder="ค้นหา Influencer..."
+                       class="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white w-64 text-sm">
+                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            
+            <!-- Tier Filter -->
+            <select x-model="tierFilter" @change="loadInfluencers()"
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white text-sm">
+                <option value="">ทุก Tier</option>
+                <option value="mega">Mega (>1M)</option>
+                <option value="macro">Macro (100K-1M)</option>
+                <option value="micro">Micro (10K-100K)</option>
+                <option value="nano">Nano (<10K)</option>
+            </select>
+        </div>
+        
+        <button @click="openAddModal()" 
+                class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors text-sm font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            <span>เพิ่ม Influencer</span>
+        </button>
+    </div>
+    
+    <!-- Stats -->
+    <div class="grid grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p class="text-2xl font-bold text-gray-800" x-text="stats.total"></p>
+            <p class="text-xs text-gray-500">Influencers ทั้งหมด</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p class="text-2xl font-bold text-purple-600" x-text="stats.mega + stats.macro"></p>
+            <p class="text-xs text-gray-500">Mega/Macro</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p class="text-2xl font-bold text-blue-600" x-text="stats.micro + stats.nano"></p>
+            <p class="text-xs text-gray-500">Micro/Nano</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p class="text-2xl font-bold text-green-600" x-text="'฿' + formatNumber(stats.total_cost)"></p>
+            <p class="text-xs text-gray-500">ค่าใช้จ่ายรวม</p>
+        </div>
+    </div>
+    
+    <!-- Table -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+        <div x-show="loading" class="p-12 text-center">
+            <svg class="animate-spin w-8 h-8 text-gray-400 mx-auto" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+        
+        <table x-show="!loading" class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Influencer</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">TikTok</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Tier</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">ค่าจ้าง/คลิป</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Followers</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Contents</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Total Paid</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                <template x-for="inf in influencers" :key="inf.id">
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4">
+                            <p class="font-medium text-gray-800" x-text="inf.name"></p>
+                        </td>
+                        <td class="px-6 py-4">
+                            <a :href="'https://tiktok.com/@' + inf.tiktok_username" target="_blank"
+                               class="text-blue-600 hover:underline" x-text="'@' + inf.tiktok_username"></a>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                  :class="{
+                                      'bg-purple-100 text-purple-700': inf.tier === 'mega',
+                                      'bg-indigo-100 text-indigo-700': inf.tier === 'macro',
+                                      'bg-blue-100 text-blue-700': inf.tier === 'micro',
+                                      'bg-gray-100 text-gray-700': inf.tier === 'nano'
+                                  }"
+                                  x-text="inf.tier || '-'"></span>
+                        </td>
+                        <td class="px-6 py-4 text-right font-medium text-gray-800">
+                            <span x-text="inf.default_rate ? '฿' + formatNumber(inf.default_rate) : '-'"></span>
+                        </td>
+                        <td class="px-6 py-4 text-right text-gray-600">
+                            <span x-text="inf.tiktok_followers ? formatNumber(inf.tiktok_followers) : '-'"></span>
+                        </td>
+                        <td class="px-6 py-4 text-center text-gray-600" x-text="inf.total_contents || 0"></td>
+                        <td class="px-6 py-4 text-right font-medium text-green-600">
+                            <span x-text="inf.total_cost_paid ? '฿' + formatNumber(inf.total_cost_paid) : '-'"></span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button @click="editInfluencer(inf)" class="p-2 hover:bg-gray-100 rounded-lg" title="แก้ไข">
+                                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </template>
+                <tr x-show="influencers.length === 0 && !loading">
+                    <td colspan="8" class="px-6 py-12 text-center text-gray-500">
+                        ไม่พบข้อมูล Influencer
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Add/Edit Modal -->
+    <div x-show="showModal" x-transition
+         class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" x-cloak>
+        <div @click.away="showModal = false" 
+             class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-800" x-text="isEditing ? 'แก้ไข Influencer' : 'เพิ่ม Influencer'"></h3>
+                <button @click="showModal = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ *</label>
+                    <input type="text" x-model="form.name" 
+                           class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                           placeholder="ชื่อจริง หรือ ชื่อที่ใช้เรียก">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">TikTok Username</label>
+                        <input type="text" x-model="form.tiktok_username" 
+                               class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                               placeholder="username (ไม่ต้องใส่ @)">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Instagram</label>
+                        <input type="text" x-model="form.instagram_username" 
+                               class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                               placeholder="username">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tier</label>
+                        <select x-model="form.tier" 
+                                class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm">
+                            <option value="">-- เลือก --</option>
+                            <option value="mega">Mega (>1M followers)</option>
+                            <option value="macro">Macro (100K-1M)</option>
+                            <option value="micro">Micro (10K-100K)</option>
+                            <option value="nano">Nano (<10K)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Followers (TikTok)</label>
+                        <input type="number" x-model="form.tiktok_followers" 
+                               class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                               placeholder="จำนวน followers">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ค่าจ้างเริ่มต้น/คลิป (บาท)</label>
+                        <input type="number" x-model="form.default_rate" 
+                               class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                               placeholder="0">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">สกุลเงิน</label>
+                        <select x-model="form.currency" 
+                                class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm">
+                            <option value="THB">THB</option>
+                            <option value="USD">USD</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">หมายเหตุ</label>
+                    <textarea x-model="form.notes" rows="2"
+                              class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                              placeholder="หมายเหตุเพิ่มเติม เช่น เอเจนซี่ ช่องทางติดต่อ"></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+                <button @click="showModal = false" 
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg text-sm font-medium">
+                    ยกเลิก
+                </button>
+                <button @click="saveInfluencer()" :disabled="saving"
+                        class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                    <span x-text="saving ? 'กำลังบันทึก...' : 'บันทึก'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div x-show="toast.show" x-transition
+         class="fixed bottom-6 right-6 px-6 py-3 rounded-xl shadow-lg text-white z-50"
+         :class="toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'">
+        <span x-text="toast.message"></span>
+    </div>
+</div>
+
+<script>
+function influencersPage() {
+    return {
+        influencers: [],
+        loading: true,
+        saving: false,
+        showModal: false,
+        isEditing: false,
+        editingId: null,
+        search: '',
+        tierFilter: '',
+        stats: { total: 0, mega: 0, macro: 0, micro: 0, nano: 0, total_cost: 0 },
+        form: {
+            name: '',
+            tiktok_username: '',
+            instagram_username: '',
+            tier: '',
+            tiktok_followers: '',
+            default_rate: '',
+            currency: 'THB',
+            notes: ''
+        },
+        toast: { show: false, message: '', type: 'success' },
+        
+        init() {
+            this.loadInfluencers();
+        },
+        
+        async loadInfluencers() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams({ page_size: 200 });
+                if (this.search) params.append('search', this.search);
+                if (this.tierFilter) params.append('tier', this.tierFilter);
+                
+                const response = await fetch(`/api/v1/influencers?${params}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.influencers = data.data;
+                    this.stats.total = data.total;
+                    this.stats.mega = this.influencers.filter(i => i.tier === 'mega').length;
+                    this.stats.macro = this.influencers.filter(i => i.tier === 'macro').length;
+                    this.stats.micro = this.influencers.filter(i => i.tier === 'micro').length;
+                    this.stats.nano = this.influencers.filter(i => i.tier === 'nano').length;
+                    this.stats.total_cost = this.influencers.reduce((sum, i) => sum + (i.total_cost_paid || 0), 0);
+                }
+            } catch (err) {
+                console.error('Error loading influencers:', err);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        openAddModal() {
+            this.isEditing = false;
+            this.editingId = null;
+            this.form = {
+                name: '',
+                tiktok_username: '',
+                instagram_username: '',
+                tier: '',
+                tiktok_followers: '',
+                default_rate: '',
+                currency: 'THB',
+                notes: ''
+            };
+            this.showModal = true;
+        },
+        
+        editInfluencer(inf) {
+            this.isEditing = true;
+            this.editingId = inf.id;
+            this.form = { ...inf };
+            this.showModal = true;
+        },
+        
+        async saveInfluencer() {
+            if (!this.form.name) {
+                this.showToast('กรุณากรอกชื่อ', 'error');
+                return;
+            }
+            
+            this.saving = true;
+            try {
+                const url = this.isEditing ? `/api/v1/influencers/${this.editingId}` : '/api/v1/influencers';
+                const method = this.isEditing ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.form)
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast(this.isEditing ? 'อัปเดตสำเร็จ' : 'เพิ่มสำเร็จ', 'success');
+                    this.showModal = false;
+                    this.loadInfluencers();
+                } else {
+                    this.showToast(data.message || 'เกิดข้อผิดพลาด', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        formatNumber(num) {
+            if (!num) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toLocaleString();
+        },
+        
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => { this.toast.show = false; }, 3000);
+        }
+    }
+}
+</script>
+{% endblock %}
+

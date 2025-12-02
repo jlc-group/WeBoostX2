@@ -540,7 +540,7 @@ class TikTokService:
 
     @classmethod
     def ensure_contents_for_item_ids(
-        cls, item_ids: List[str], db: Session | None = None
+        cls, item_ids: List[str], db: Optional[Session] = None
     ) -> Dict:
         """
         ให้แน่ใจว่า TikTok content สำหรับ item_ids ที่ระบุ "มีอยู่" ในตาราง contents แล้ว

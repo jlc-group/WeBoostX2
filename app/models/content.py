@@ -52,9 +52,13 @@ class Content(BaseModel, SoftDeleteMixin):
     # ============================================
     # Creator/Owner Info
     # ============================================
-    creator_id = Column(String(100), nullable=True)  # Influencer ID or internal ID
-    creator_name = Column(String(255), nullable=True)
+    creator_id = Column(String(100), nullable=True)  # Platform user ID
+    creator_name = Column(String(255), nullable=True)  # Platform username
     creator_details = Column(JSON, nullable=True)  # Additional creator info
+    
+    # Employee/Influencer relationship
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True, index=True)
+    influencer_id = Column(Integer, ForeignKey("influencers.id"), nullable=True, index=True)
     influencer_cost = Column(Numeric(12, 2), nullable=True)  # Cost paid to influencer
     
     # ============================================
@@ -88,11 +92,15 @@ class Content(BaseModel, SoftDeleteMixin):
     ads_total_cost = Column(Numeric(15, 2), default=0)  # Total spent across all platforms
     ads_count = Column(Integer, default=0)  # Number of ads using this content
     
-    # ACE/ABX specific
+    # ACE/ABX specific (TikTok only)
+    # ACE = 1 adgroup per 1 content (standard)
+    # ABX = 1 adgroup per N contents (testing multiple contents)
     ace_ad_count = Column(Integer, default=0)
+    ace_details = Column(JSON, nullable=True)  # List of ACE ads info
     abx_ad_count = Column(Integer, default=0)
+    abx_details = Column(JSON, nullable=True)  # List of ABX ads info
     
-    # Detailed ads info (JSON)
+    # Detailed ads info (JSON) - all platforms
     ads_details = Column(JSON, nullable=True)
     # {"tiktok": [...], "facebook": [...]}
     
@@ -129,6 +137,8 @@ class Content(BaseModel, SoftDeleteMixin):
     # ============================================
     ad_account = relationship("AdAccount", back_populates="contents")
     ads = relationship("Ad", back_populates="content")
+    employee = relationship("Employee", backref="contents", foreign_keys=[employee_id])
+    influencer = relationship("Influencer", backref="contents", foreign_keys=[influencer_id])
 
 
 class ContentScoreHistory(BaseModel):

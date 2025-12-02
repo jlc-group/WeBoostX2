@@ -1,0 +1,1793 @@
+{% extends "layouts/app.html" %}
+
+{% block page_title %}TikTok Contents{% endblock %}
+{% block page_subtitle %}จัดการ TikTok Content ทั้งหมด{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="tiktokContentsPage()">
+    <!-- Header Actions -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <!-- Filters -->
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Status Filter -->
+            <select x-model="filters.status" @change="loadContents()" 
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white text-sm">
+                <option value="">ทุกสถานะ</option>
+                <option value="ready">Ready</option>
+                <option value="active_ad">Active Ad</option>
+                <option value="test_ad">Test Ad</option>
+                <option value="paused">Paused</option>
+                <option value="expired">Expired</option>
+            </select>
+            
+            <!-- Content Type Filter -->
+            <select x-model="filters.content_type" @change="loadContents()"
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white text-sm">
+                <option value="">ทุกประเภท</option>
+                <option value="sale">Sale</option>
+                <option value="review">Review</option>
+                <option value="branding">Branding</option>
+                <option value="ecom">E-commerce</option>
+            </select>
+            
+            <!-- Search -->
+            <div class="relative">
+                <input type="text" x-model="filters.search" @input.debounce.500ms="loadContents()"
+                       placeholder="ค้นหา caption, creator..."
+                       class="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white w-64 text-sm">
+                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            
+            <!-- Active Filter Badges -->
+            <!-- Creator Filter -->
+            <div x-show="filters.creator" class="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm">
+                <span>Creator:</span>
+                <span class="font-medium" x-text="filters.creator"></span>
+                <button @click="clearFilter('creator')" class="hover:bg-blue-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Content Type Filter -->
+            <div x-show="filters.content_type" class="flex items-center gap-2 px-3 py-2 bg-purple-50 text-purple-700 rounded-xl text-sm">
+                <span>Type:</span>
+                <span class="font-medium" x-text="getContentTypeLabel(filters.content_type)"></span>
+                <button @click="clearFilter('content_type')" class="hover:bg-purple-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Content Source Filter -->
+            <div x-show="filters.content_source" class="flex items-center gap-2 px-3 py-2 bg-pink-50 text-pink-700 rounded-xl text-sm">
+                <span>Source:</span>
+                <span class="font-medium" x-text="getContentSourceLabel(filters.content_source)"></span>
+                <button @click="clearFilter('content_source')" class="hover:bg-pink-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Status Filter (from badge click) -->
+            <div x-show="filters.status && !$refs.statusSelect?.value" class="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-xl text-sm">
+                <span>Status:</span>
+                <span class="font-medium" x-text="filters.status"></span>
+                <button @click="clearFilter('status')" class="hover:bg-green-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Expiring Filter -->
+            <div x-show="filters.expiring" class="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-700 rounded-xl text-sm">
+                <span>📅 Expiring Soon</span>
+                <button @click="clearFilter('expiring')" class="hover:bg-red-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="flex items-center gap-3">
+            <!-- Bulk Update Button (show when items selected) -->
+            <button x-show="selectedIds.length > 0" @click="openBulkUpdate()"
+                    class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                <span x-text="'อัปเดต ' + selectedIds.length + ' รายการ'"></span>
+            </button>
+            
+            <button @click="syncContent()" :disabled="syncing"
+                    class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors disabled:opacity-50 text-sm font-medium">
+                <svg class="w-4 h-4" :class="syncing && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                <span x-text="syncing ? 'Syncing...' : 'Sync TikTok'"></span>
+            </button>
+            
+            <button @click="recalculatePFM()" :disabled="calculating"
+                    class="flex items-center gap-2 px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white rounded-xl transition-colors disabled:opacity-50 text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+                <span>คำนวณ PFM</span>
+            </button>
+
+            <button @click="showImport = true"
+                    class="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl bg-white hover:bg-gray-50 transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                <span>Import Content</span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-800" x-text="stats.total"></p>
+                    <p class="text-xs text-gray-500">Total Contents</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-800" x-text="stats.avg_pfm.toFixed(2)"></p>
+                    <p class="text-xs text-gray-500">Avg PFM</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-800" x-text="formatNumber(stats.total_views)"></p>
+                    <p class="text-xs text-gray-500">Total Views</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-pink-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-800" x-text="stats.active_ads"></p>
+                    <p class="text-xs text-gray-500">Active Ads</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-gray-800" x-text="formatCurrency(stats.total_cost)"></p>
+                    <p class="text-xs text-gray-500">Total Ad Cost</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Content Table -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+        <!-- Loading -->
+        <div x-show="loading" class="p-12 text-center">
+            <svg class="animate-spin w-8 h-8 text-gray-900 mx-auto" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="text-gray-500 mt-3">กำลังโหลด TikTok Contents...</p>
+        </div>
+        
+        <!-- Table -->
+        <div x-show="!loading" class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-16">
+                            <input type="checkbox" @change="toggleSelectAll" class="rounded border-gray-300">
+                        </th>
+                        <th @click="sortBy('platform_created_at')" class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            <span class="flex items-center gap-1">
+                                Date
+                                <svg x-show="sortField === 'platform_created_at'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[350px]">Content</th>
+                        <th @click="sortBy('creator_name')" class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            <span class="flex items-center gap-1">
+                                Creator
+                                <svg x-show="sortField === 'creator_name'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </span>
+                        </th>
+                        <!-- VIEWS Column with Dropdown Sort -->
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider relative" x-data="{ showViewsSort: false }">
+                            <button @click="showViewsSort = !showViewsSort" @click.away="showViewsSort = false" class="flex items-center justify-end gap-1 cursor-pointer hover:text-primary-600 w-full">
+                                <span>Views</span>
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                <svg x-show="['views','likes','comments'].includes(sortField)" class="w-3 h-3 text-primary-600" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+                            </button>
+                            <!-- Dropdown Menu -->
+                            <div x-show="showViewsSort" x-transition 
+                                 class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[140px]">
+                                <button @click="sortBy('views'); showViewsSort = false" 
+                                        class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                        :class="sortField === 'views' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'">
+                                    <span>👁️ Views</span>
+                                    <svg x-show="sortField === 'views'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <button @click="sortBy('likes'); showViewsSort = false" 
+                                        class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                        :class="sortField === 'likes' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'">
+                                    <span>❤️ Likes</span>
+                                    <svg x-show="sortField === 'likes'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <button @click="sortBy('comments'); showViewsSort = false" 
+                                        class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                        :class="sortField === 'comments' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'">
+                                    <span>💬 Comments</span>
+                                    <svg x-show="sortField === 'comments'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <button @click="sortBy('shares'); showViewsSort = false" 
+                                        class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                        :class="sortField === 'shares' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'">
+                                    <span>🔄 Shares</span>
+                                    <svg x-show="sortField === 'shares'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                            </div>
+                        </th>
+                        <th @click="sortBy('pfm_score')" class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            <span class="flex items-center justify-center gap-1">
+                                PFM
+                                <svg x-show="sortField === 'pfm_score'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </span>
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Products</th>
+                        <th @click="sortBy('ads_count')" class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            <span class="flex items-center justify-center gap-1">
+                                Ads
+                                <svg x-show="sortField === 'ads_count'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </span>
+                        </th>
+                        <!-- COST Column with Dropdown Sort -->
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider relative" x-data="{ showCostSort: false }">
+                            <button @click="showCostSort = !showCostSort" @click.away="showCostSort = false" class="flex items-center justify-end gap-1 cursor-pointer hover:text-primary-600 w-full">
+                                <span>Cost</span>
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                <svg x-show="['influencer_cost','ads_total_cost'].includes(sortField)" class="w-3 h-3 text-primary-600" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+                            </button>
+                            <!-- Dropdown Menu -->
+                            <div x-show="showCostSort" x-transition 
+                                 class="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]">
+                                <button @click="sortBy('influencer_cost'); showCostSort = false" 
+                                        class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                        :class="sortField === 'influencer_cost' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'">
+                                    <span>👤 Influencer Cost</span>
+                                    <svg x-show="sortField === 'influencer_cost'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                                <button @click="sortBy('ads_total_cost'); showCostSort = false" 
+                                        class="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between"
+                                        :class="sortField === 'ads_total_cost' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'">
+                                    <span>📢 Ads Cost</span>
+                                    <svg x-show="sortField === 'ads_total_cost'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </button>
+                            </div>
+                        </th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <template x-for="content in contents" :key="content.id">
+                        <tr class="hover:bg-gray-50/50 transition-colors">
+                            <!-- Checkbox -->
+                            <td class="px-4 py-3">
+                                <input type="checkbox" :value="content.id" x-model="selectedIds" class="rounded border-gray-300">
+                            </td>
+                            
+                            <!-- Date -->
+                            <td class="px-4 py-3">
+                                <div class="text-xs">
+                                    <p class="font-medium text-gray-800" x-text="formatDate(content.platform_created_at)"></p>
+                                    <p class="text-gray-400" x-text="formatTime(content.platform_created_at)"></p>
+                                </div>
+                            </td>
+                            
+                            <!-- Content Info -->
+                            <td class="px-4 py-3">
+                                <div class="flex items-start gap-3">
+                                    <a :href="content.url" target="_blank" class="flex-shrink-0">
+                                        <div class="w-14 h-20 bg-gray-200 rounded-lg overflow-hidden relative group">
+                                            <img :src="content.thumbnail_url || '/static/placeholder.svg'" 
+                                                 :alt="content.caption"
+                                                 class="w-full h-full object-cover"
+                                                 onerror="this.src='/static/placeholder.svg'">
+                                            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </a>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm text-gray-800 line-clamp-2" x-text="content.caption || 'No caption'"></p>
+                                        <p class="text-xs text-gray-400 mt-0.5 font-mono" x-text="content.platform_post_id"></p>
+                                        <!-- Content Metadata Badges (Clickable for filtering) -->
+                                        <div class="flex flex-wrap items-center gap-1 mt-1.5">
+                                            <!-- Content Type Badge - Clickable -->
+                                            <button @click="filterByContentType(content.content_type)"
+                                                  class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all"
+                                                  :class="{'bg-purple-100 text-purple-700 hover:ring-purple-300': content.content_type === 'sale', 'bg-blue-100 text-blue-700 hover:ring-blue-300': content.content_type === 'branding', 'bg-green-100 text-green-700 hover:ring-green-300': content.content_type === 'review', 'bg-orange-100 text-orange-700 hover:ring-orange-300': content.content_type === 'tutorial', 'bg-gray-100 text-gray-600 hover:ring-gray-300': !content.content_type || content.content_type === 'other'}"
+                                                  x-text="getContentTypeLabel(content.content_type)"></button>
+                                            <!-- Content Source Badge - Clickable -->
+                                            <button @click="filterByContentSource(content.content_source)"
+                                                  class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all"
+                                                  :class="{'bg-pink-100 text-pink-700 hover:ring-pink-300': content.content_source === 'influencer', 'bg-indigo-100 text-indigo-700 hover:ring-indigo-300': content.content_source === 'page', 'bg-teal-100 text-teal-700 hover:ring-teal-300': content.content_source === 'staff'}"
+                                                  x-text="getContentSourceLabel(content.content_source)"></button>
+                                            <!-- Boost Badge -->
+                                            <span x-show="content.boost_factor > 1" class="inline-flex px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-medium">⚡x<span x-text="content.boost_factor"></span></span>
+                                            <!-- Expire Date Badge - Clickable to filter expiring soon -->
+                                            <button x-show="content.expire_date" 
+                                                  @click="filterByExpiring()"
+                                                  class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all" 
+                                                  :class="isExpiringSoon(content.expire_date) ? 'bg-red-100 text-red-700 hover:ring-red-300' : 'bg-gray-100 text-gray-600 hover:ring-gray-300'">📅<span x-text="formatExpireDate(content.expire_date)"></span></button>
+                                        </div>
+                                        <div class="flex items-center gap-2 mt-1 text-[10px] text-gray-500">
+                                            <span>⏱️ <span x-text="formatDuration(content.video_duration)"></span></span>
+                                            <span>• Avg: <span x-text="formatDuration(content.avg_watch_time)"></span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            
+                            <!-- Creator -->
+                            <td class="px-4 py-3">
+                                <button x-show="content.creator_name" 
+                                        @click="filterByCreator(content.creator_name)"
+                                        class="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left"
+                                        x-text="content.creator_name">
+                                </button>
+                                <span x-show="!content.creator_name" class="text-gray-400">-</span>
+                            </td>
+                            
+                            <!-- Views -->
+                            <td class="px-4 py-3 text-right">
+                                <div>
+                                    <p class="text-sm font-bold text-gray-800" x-text="formatNumber(content.views)"></p>
+                                    <div class="flex items-center justify-end gap-2 text-[10px] text-gray-500 mt-0.5">
+                                        <span>❤️<span x-text="formatNumber(content.likes)"></span></span>
+                                        <span>💬<span x-text="formatNumber(content.comments)"></span></span>
+                                    </div>
+                                </div>
+                            </td>
+                            
+                            <!-- PFM Score -->
+                            <td class="px-4 py-3 text-center">
+                                <span class="inline-flex items-center justify-center w-12 h-12 rounded-full text-sm font-bold"
+                                      :class="{
+                                          'bg-green-100 text-green-700': content.pfm_score >= 1.5,
+                                          'bg-yellow-100 text-yellow-700': content.pfm_score >= 1 && content.pfm_score < 1.5,
+                                          'bg-orange-100 text-orange-700': content.pfm_score >= 0.5 && content.pfm_score < 1,
+                                          'bg-red-100 text-red-700': content.pfm_score < 0.5 || !content.pfm_score
+                                      }"
+                                      x-text="content.pfm_score ? content.pfm_score.toFixed(2) : '0.00'">
+                                </span>
+                            </td>
+                            
+                            <!-- Products -->
+                            <td class="px-4 py-3">
+                                <template x-if="content.product_codes && content.product_codes.length > 0">
+                                    <div class="flex flex-wrap gap-1">
+                                        <template x-for="code in content.product_codes.slice(0, 3)" :key="code">
+                                            <span class="inline-flex px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium" x-text="code"></span>
+                                        </template>
+                                        <template x-if="content.product_codes.length > 3">
+                                            <span class="inline-flex px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs" x-text="'+' + (content.product_codes.length - 3)"></span>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template x-if="!content.product_codes || content.product_codes.length === 0">
+                                    <span class="text-xs text-gray-400">-</span>
+                                </template>
+                            </td>
+                            
+                            <!-- Ads Count -->
+                            <td class="px-4 py-3 text-center">
+                                <template x-if="content.ads_count > 0">
+                                    <button @click="showAdsDetails(content)" 
+                                            class="inline-flex flex-col items-center gap-0.5 hover:bg-gray-100 rounded-lg px-2 py-1 transition-colors">
+                                        <span class="text-sm font-bold text-gray-800" x-text="content.ads_count"></span>
+                                        <div class="flex gap-1 text-[10px]">
+                                            <span class="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded" x-text="'ACE:' + (content.ace_ad_count || 0)"></span>
+                                            <span class="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded" x-text="'ABX:' + (content.abx_ad_count || 0)"></span>
+                                        </div>
+                                    </button>
+                                </template>
+                                <template x-if="!content.ads_count || content.ads_count === 0">
+                                    <span class="text-xs text-gray-400">0</span>
+                                </template>
+                            </td>
+                            
+                            <!-- Cost (Influencer + Ads) -->
+                            <td class="px-4 py-3 text-right">
+                                <div class="text-xs">
+                                    <template x-if="content.influencer_cost > 0">
+                                        <div class="flex items-center justify-end gap-1 text-pink-600">
+                                            <span class="text-[10px] text-gray-400">Influ:</span>
+                                            <span class="font-medium" x-text="'฿' + formatNumber(content.influencer_cost)"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="content.ads_total_cost > 0">
+                                        <div class="flex items-center justify-end gap-1 text-green-600">
+                                            <span class="text-[10px] text-gray-400">Ads:</span>
+                                            <span class="font-medium" x-text="'฿' + formatNumber(content.ads_total_cost)"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="!content.influencer_cost && !content.ads_total_cost">
+                                        <span class="text-gray-400">-</span>
+                                    </template>
+                                </div>
+                            </td>
+                            
+                            <!-- Status -->
+                            <td class="px-4 py-3 text-center">
+                                <button @click="filterByStatus(content.status || 'ready')"
+                                      class="inline-flex px-2 py-1 rounded-full text-xs font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all"
+                                      :class="{
+                                          'bg-green-100 text-green-700 hover:ring-green-300': content.status === 'active_ad',
+                                          'bg-blue-100 text-blue-700 hover:ring-blue-300': content.status === 'ready',
+                                          'bg-yellow-100 text-yellow-700 hover:ring-yellow-300': content.status === 'test_ad',
+                                          'bg-gray-100 text-gray-700 hover:ring-gray-300': content.status === 'paused',
+                                          'bg-red-100 text-red-700 hover:ring-red-300': content.status === 'expired'
+                                      }"
+                                      x-text="content.status || 'ready'">
+                                </button>
+                            </td>
+                            
+                            <!-- Actions -->
+                            <td class="px-4 py-3">
+                                <div class="flex items-center justify-center gap-1">
+                                    <a :href="content.url" target="_blank" 
+                                       class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                       title="ดูบน TikTok">
+                                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                                        </svg>
+                                    </a>
+                                    <button @click="editContent(content)" 
+                                            class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                            title="แก้ไข">
+                                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                        </svg>
+                                    </button>
+                                    <button @click="toggleBoost(content)"
+                                            class="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                            :class="content.boost_factor > 1 && 'text-orange-500'"
+                                            title="Boost Content">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    
+                    <!-- Empty State -->
+                    <tr x-show="contents.length === 0 && !loading">
+                        <td colspan="13" class="px-6 py-16 text-center">
+                            <div class="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
+                                <svg class="w-8 h-8 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
+                                </svg>
+                            </div>
+                            <p class="text-gray-500 font-medium">ไม่พบ TikTok Content</p>
+                            <p class="text-gray-400 text-sm mt-1">ลอง Sync Content จาก TikTok หรือเปลี่ยน Filter</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div x-show="!loading && totalPages > 1" class="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
+            <p class="text-sm text-gray-600">
+                แสดง <span class="font-medium" x-text="((currentPage - 1) * pageSize) + 1"></span> - 
+                <span class="font-medium" x-text="Math.min(currentPage * pageSize, totalItems)"></span> 
+                จาก <span class="font-medium" x-text="totalItems"></span> รายการ
+            </p>
+            <div class="flex items-center gap-2">
+                <button @click="currentPage--; loadContents()" :disabled="currentPage === 1"
+                        class="px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+                    ก่อนหน้า
+                </button>
+                <span class="px-4 py-2 text-sm text-gray-600">
+                    <span x-text="currentPage"></span> / <span x-text="totalPages"></span>
+                </span>
+                <button @click="currentPage++; loadContents()" :disabled="currentPage === totalPages"
+                        class="px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
+                    ถัดไป
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Import Modal -->
+    <div x-show="showImport" x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div @click.away="showImport = false" 
+             class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-800">Import TikTok Content</h3>
+                <button @click="showImport = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    TikTok item_id หรือ URL (ทีละบรรทัด)
+                </label>
+                <textarea x-model="importText" rows="6"
+                          class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm font-mono"
+                          placeholder="7251234567890123456&#10;https://www.tiktok.com/@user/video/7251234567890123456"></textarea>
+                <p class="mt-2 text-xs text-gray-500">
+                    ระบบจะดึงรายละเอียดจาก TikTok และสร้าง/อัปเดต Content ในระบบให้อัตโนมัติ
+                </p>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                <button @click="showImport = false" 
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium">
+                    ยกเลิก
+                </button>
+                <button @click="importTikTok()" :disabled="importing"
+                        class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                    <span x-text="importing ? 'กำลังนำเข้า...' : 'นำเข้า'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Modal -->
+    <div x-show="showEditModal" x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div @click.away="showEditModal = false" 
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+             class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-800">แก้ไข Content</h3>
+                <button @click="showEditModal = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[60vh] space-y-4">
+                <!-- Thumbnail Preview -->
+                <div class="flex gap-4">
+                    <div class="w-20 h-28 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                        <img :src="editingContent?.thumbnail_url || '/static/placeholder.svg'" class="w-full h-full object-cover">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-gray-600 line-clamp-2" x-text="editingContent?.caption"></p>
+                        <p class="text-xs text-gray-400 mt-1 font-mono" x-text="editingContent?.platform_post_id"></p>
+                    </div>
+                </div>
+                
+                <!-- Products -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Products (รหัสสินค้า)</label>
+                    <input type="text" x-model="editForm.products" 
+                           class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm"
+                           placeholder="เช่น JL001, JL002 (คั่นด้วย comma)">
+                </div>
+                
+                <!-- Content Type -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Content Type</label>
+                    <select x-model="editForm.content_type" 
+                            class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm">
+                        <option value="sale">Sale</option>
+                        <option value="review">Review</option>
+                        <option value="branding">Branding</option>
+                        <option value="ecom">E-commerce</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <!-- Content Status -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Content Status</label>
+                    <select x-model="editForm.status" 
+                            class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm">
+                        <option value="ready">Ready</option>
+                        <option value="test_ad">Test Ad</option>
+                        <option value="active_ad">Active Ad</option>
+                        <option value="paused">Paused</option>
+                        <option value="expired">Expired</option>
+                    </select>
+                </div>
+                
+                <!-- Content Source -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Content Source</label>
+                    <select x-model="editForm.content_source" 
+                            class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm">
+                        <option value="influencer">Influencer</option>
+                        <option value="page">Official Page</option>
+                        <option value="staff">Staff (พนักงาน)</option>
+                        <option value="ugc">UGC</option>
+                    </select>
+                </div>
+                
+                <!-- Employee (if Staff) -->
+                <div x-show="editForm.content_source === 'staff'">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">พนักงานที่ทำคลิป</label>
+                    <select x-model="editForm.employee_id" 
+                            class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm">
+                        <option value="">-- เลือกพนักงาน --</option>
+                        <template x-for="emp in employees" :key="emp.id">
+                            <option :value="emp.id" x-text="emp.employee_code + ' - ' + emp.full_name"></option>
+                        </template>
+                    </select>
+                </div>
+                
+                <!-- Influencer Cost (if Influencer) -->
+                <div x-show="editForm.content_source === 'influencer'">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ค่าจ้าง Influencer (บาท)</label>
+                    <input type="number" x-model="editForm.influencer_cost" 
+                           class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm"
+                           placeholder="0">
+                </div>
+                
+                <!-- Expire Date -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">วันหมดอายุ Content</label>
+                    <input type="date" x-model="editForm.expire_date" 
+                           class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm">
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+                <button @click="showEditModal = false" 
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg text-sm font-medium">
+                    ยกเลิก
+                </button>
+                <button @click="saveContentEdit()" :disabled="saving"
+                        class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                    <span x-text="saving ? 'กำลังบันทึก...' : 'บันทึก'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Ads Details Modal -->
+    <div x-show="showAdsModal" x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div @click.away="showAdsModal = false" 
+             class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">รายละเอียด Ads</h3>
+                    <p class="text-sm text-gray-500 font-mono" x-text="adsContent?.platform_post_id"></p>
+                </div>
+                <button @click="showAdsModal = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[70vh]">
+                <!-- Summary Stats -->
+                <div class="grid grid-cols-5 gap-3 mb-6">
+                    <div class="bg-blue-50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-bold text-blue-600" x-text="adsContent?.ads_count || 0"></p>
+                        <p class="text-xs text-blue-600">Total Ads</p>
+                    </div>
+                    <div class="bg-yellow-50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-bold text-yellow-600" x-text="adsContent?.ace_ad_count || 0"></p>
+                        <p class="text-xs text-yellow-600">ACE Ads</p>
+                    </div>
+                    <div class="bg-purple-50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-bold text-purple-600" x-text="adsContent?.abx_ad_count || 0"></p>
+                        <p class="text-xs text-purple-600">ABX Ads</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-bold text-gray-600" x-text="(adsContent?.ads_count || 0) - (adsContent?.ace_ad_count || 0) - (adsContent?.abx_ad_count || 0)"></p>
+                        <p class="text-xs text-gray-600">General</p>
+                    </div>
+                    <div class="bg-green-50 rounded-xl p-3 text-center">
+                        <p class="text-xl font-bold text-green-600" x-text="'฿' + formatNumber(adsContent?.ads_total_cost || 0)"></p>
+                        <p class="text-xs text-green-600">Total Cost</p>
+                    </div>
+                </div>
+                
+                <!-- Ads List -->
+                <div x-show="adsLoading" class="text-center py-8">
+                    <svg class="animate-spin w-8 h-8 text-primary-500 mx-auto mb-3" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="text-gray-500 text-sm">กำลังดึงข้อมูล Ads จาก TikTok API...</p>
+                    <p class="text-gray-400 text-xs mt-1">รอสักครู่</p>
+                </div>
+                
+                <div x-show="!adsLoading && adsDetails.length > 0" class="space-y-3">
+                    <template x-for="ad in adsDetails" :key="ad.ad_id || ad.adgroup_id || ad.id">
+                        <div class="border border-gray-200 rounded-xl p-4 hover:bg-gray-50 transition-colors"
+                             :class="{'opacity-50': ad.status === 'DISABLE' || ad.secondary_status?.includes('DISABLE')}">
+                            <!-- Header -->
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="px-2 py-1 text-xs font-medium rounded"
+                                          :class="{
+                                              'bg-yellow-100 text-yellow-700': ad.type === 'ACE', 
+                                              'bg-purple-100 text-purple-700': ad.type === 'ABX',
+                                              'bg-gray-100 text-gray-700': ad.type === 'GENERAL' || (!ad.type && !ad.ad_name?.includes('_ACE_') && !ad.ad_name?.includes('_ABX_'))
+                                          }"
+                                          x-text="ad.type || 'GENERAL'"></span>
+                                    <span class="font-medium text-gray-800 text-sm" x-text="ad.ad_name || ad.adgroup_name || 'Ad'"></span>
+                                </div>
+                                <span class="px-2 py-1 text-xs rounded-full"
+                                      :class="{
+                                          'bg-green-100 text-green-700': ad.status === 'ENABLE',
+                                          'bg-red-100 text-red-700': ad.status === 'DISABLE',
+                                          'bg-blue-100 text-blue-700': ad.status === 'FROZEN',
+                                          'bg-gray-100 text-gray-700': !ad.status
+                                      }"
+                                      x-text="ad.status || 'UNKNOWN'"></span>
+                            </div>
+                            
+                            <!-- Campaign & Adgroup Names -->
+                            <div class="mb-3 text-xs text-gray-500 space-y-0.5">
+                                <p x-show="ad.campaign_name"><span class="text-gray-400">Campaign:</span> <span x-text="ad.campaign_name"></span></p>
+                                <p x-show="ad.adgroup_name"><span class="text-gray-400">Adgroup:</span> <span x-text="ad.adgroup_name"></span></p>
+                            </div>
+                            
+                            <!-- Stats Grid -->
+                            <div class="grid grid-cols-4 gap-3 text-sm">
+                                <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                    <p class="text-xs text-gray-500">Budget</p>
+                                    <p class="font-semibold text-gray-800" x-text="'฿' + formatNumber(ad.budget || 0)"></p>
+                                    <p class="text-[10px] text-gray-400" x-text="ad.budget_mode === 'BUDGET_MODE_TOTAL' ? 'Total' : 'Daily'"></p>
+                                </div>
+                                <div class="bg-green-50 rounded-lg p-2 text-center">
+                                    <p class="text-xs text-green-600">Spend</p>
+                                    <p class="font-semibold text-green-700" x-text="'฿' + formatNumber(ad.spend || ad.total_cost || 0)"></p>
+                                </div>
+                                <div class="bg-blue-50 rounded-lg p-2 text-center">
+                                    <p class="text-xs text-blue-600">Status</p>
+                                    <p class="font-semibold text-blue-700 text-xs" x-text="ad.status || '-'"></p>
+                                </div>
+                                <div class="bg-gray-50 rounded-lg p-2 text-center">
+                                    <p class="text-xs text-gray-500">Updated</p>
+                                    <p class="font-medium text-gray-700 text-xs" x-text="ad.modify_time ? formatDate(ad.modify_time) : '-'"></p>
+                                </div>
+                            </div>
+                            
+                            <!-- Secondary Status -->
+                            <p x-show="ad.secondary_status" class="mt-2 text-[10px] text-orange-600 bg-orange-50 px-2 py-1 rounded" x-text="ad.secondary_status"></p>
+                            
+                            <!-- Control Panel -->
+                            <div class="mt-3 pt-3 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-3">
+                                <p class="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    Control Panel
+                                </p>
+                                
+                                <div class="grid grid-cols-2 gap-3">
+                                    <!-- Status Toggle -->
+                                    <div class="space-y-1">
+                                        <label class="text-[10px] text-gray-500 block">Status</label>
+                                        <div class="flex gap-1">
+                                            <button @click="updateAdStatus(ad, 'ENABLE')"
+                                                    :disabled="ad.updating"
+                                                    class="flex-1 px-2 py-1.5 text-xs rounded-lg font-medium transition-all flex items-center justify-center gap-1"
+                                                    :class="ad.status === 'ENABLE' 
+                                                        ? 'bg-green-500 text-white' 
+                                                        : 'bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-700'">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                ON
+                                            </button>
+                                            <button @click="updateAdStatus(ad, 'DISABLE')"
+                                                    :disabled="ad.updating"
+                                                    class="flex-1 px-2 py-1.5 text-xs rounded-lg font-medium transition-all flex items-center justify-center gap-1"
+                                                    :class="ad.status === 'DISABLE' 
+                                                        ? 'bg-red-500 text-white' 
+                                                        : 'bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-700'">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                OFF
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Budget Input -->
+                                    <div class="space-y-1">
+                                        <label class="text-[10px] text-gray-500 block">Budget (฿)</label>
+                                        <div class="flex gap-1">
+                                            <input type="number" 
+                                                   :value="ad.editBudget ?? ad.budget ?? 0"
+                                                   @input="ad.editBudget = $event.target.value"
+                                                   @keyup.enter="updateAdBudget(ad)"
+                                                   min="200" step="100"
+                                                   class="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+                                            <button @click="updateAdBudget(ad)"
+                                                    :disabled="ad.updating"
+                                                    class="px-2 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path x-show="!ad.updating" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                                    <path x-show="ad.updating" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Quick Budget Presets -->
+                                <div class="flex gap-1 mt-2">
+                                    <button @click="ad.editBudget = 500; updateAdBudget(ad)" 
+                                            :disabled="ad.updating"
+                                            class="px-2 py-1 text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors">
+                                        ฿500
+                                    </button>
+                                    <button @click="ad.editBudget = 1000; updateAdBudget(ad)" 
+                                            :disabled="ad.updating"
+                                            class="px-2 py-1 text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors">
+                                        ฿1K
+                                    </button>
+                                    <button @click="ad.editBudget = 3000; updateAdBudget(ad)" 
+                                            :disabled="ad.updating"
+                                            class="px-2 py-1 text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors">
+                                        ฿3K
+                                    </button>
+                                    <button @click="ad.editBudget = 5000; updateAdBudget(ad)" 
+                                            :disabled="ad.updating"
+                                            class="px-2 py-1 text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors">
+                                        ฿5K
+                                    </button>
+                                    <button @click="ad.editBudget = 10000; updateAdBudget(ad)" 
+                                            :disabled="ad.updating"
+                                            class="px-2 py-1 text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors">
+                                        ฿10K
+                                    </button>
+                                    <button @click="ad.editBudget = 20000; updateAdBudget(ad)" 
+                                            :disabled="ad.updating"
+                                            class="px-2 py-1 text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 rounded transition-colors">
+                                        ฿20K
+                                    </button>
+                                </div>
+                                
+                                <!-- Loading indicator -->
+                                <div x-show="ad.updating" class="mt-2 text-center">
+                                    <span class="inline-flex items-center gap-1 text-xs text-blue-600">
+                                        <svg class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        กำลังอัปเดท TikTok API...
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Footer with Ad ID and TikTok Link -->
+                            <div class="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
+                                <span class="text-[10px] text-gray-400 font-mono" x-text="'Ad ID: ' + (ad.ad_id || '-')"></span>
+                                <a :href="'https://ads.tiktok.com/i18n/dashboard?aadvid=' + ad.advertiser_id" 
+                                   target="_blank"
+                                   class="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                                    ดูใน TikTok Ads
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                </a>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                
+                <div x-show="!adsLoading && adsDetails.length === 0" class="text-center py-8 text-gray-500">
+                    ไม่พบข้อมูล Ads สำหรับ Content นี้
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Boost Modal -->
+    <div x-show="showBoostModal" x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div @click.away="showBoostModal = false" 
+             class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">🚀</span>
+                    <h3 class="text-lg font-semibold text-gray-800" x-text="boostContent?.boost_factor > 1 ? 'แก้ไข Boost' : 'ตั้งค่า Boost'"></h3>
+                </div>
+                <button @click="showBoostModal = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-gray-600 line-clamp-2" x-text="boostContent?.caption"></p>
+                
+                <!-- Boost Factor -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Boost Factor (ตัวคูณ)</label>
+                    <select x-model="boostForm.factor" 
+                            class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500 text-sm">
+                        <option value="1.2">1.2x (เพิ่ม 20%)</option>
+                        <option value="1.5">1.5x (เพิ่ม 50%)</option>
+                        <option value="2.0">2.0x (เพิ่ม 100%)</option>
+                        <option value="2.5">2.5x (เพิ่ม 150%)</option>
+                        <option value="3.0">3.0x (เพิ่ม 200%)</option>
+                    </select>
+                </div>
+                
+                <!-- Duration -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">ระยะเวลา (วัน)</label>
+                    <select x-model="boostForm.duration" 
+                            class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500 text-sm">
+                        <option value="3">3 วัน</option>
+                        <option value="7">7 วัน</option>
+                        <option value="14">14 วัน</option>
+                        <option value="30">30 วัน</option>
+                    </select>
+                </div>
+                
+                <!-- Reason -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">เหตุผล</label>
+                    <select x-model="boostForm.reason" 
+                            class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500 text-sm">
+                        <option value="High Performance">High Performance</option>
+                        <option value="Special Campaign">Special Campaign</option>
+                        <option value="Product Launch">Product Launch</option>
+                        <option value="Seasonal">Seasonal</option>
+                        <option value="Manual Priority">Manual Priority</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                
+                <template x-if="boostForm.reason === 'Other'">
+                    <div>
+                        <input type="text" x-model="boostForm.customReason" 
+                               class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500 text-sm"
+                               placeholder="ระบุเหตุผลอื่นๆ">
+                    </div>
+                </template>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-between bg-gray-50">
+                <template x-if="boostContent?.boost_factor > 1">
+                    <button @click="removeBoost()" 
+                            class="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium">
+                        ยกเลิก Boost
+                    </button>
+                </template>
+                <template x-if="!(boostContent?.boost_factor > 1)">
+                    <div></div>
+                </template>
+                <div class="flex gap-3">
+                    <button @click="showBoostModal = false" 
+                            class="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg text-sm font-medium">
+                        ปิด
+                    </button>
+                    <button @click="saveBoost()" :disabled="savingBoost"
+                            class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                        <span x-text="savingBoost ? 'กำลังบันทึก...' : '🚀 Apply Boost'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bulk Update Modal -->
+    <div x-show="showBulkModal" x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-cloak class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div @click.away="showBulkModal = false" 
+             class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-800">
+                    อัปเดตหลายรายการ (<span x-text="selectedIds.length"></span> รายการ)
+                </h3>
+                <button @click="showBulkModal = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <!-- Content Type -->
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 w-1/3">
+                        <input type="checkbox" x-model="bulkForm.updateContentType" class="rounded border-gray-300">
+                        <span class="text-sm font-medium text-gray-700">Content Type</span>
+                    </label>
+                    <select x-model="bulkForm.content_type" :disabled="!bulkForm.updateContentType"
+                            class="flex-1 border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm disabled:bg-gray-100">
+                        <option value="sale">Sale</option>
+                        <option value="review">Review</option>
+                        <option value="branding">Branding</option>
+                        <option value="ecom">E-commerce</option>
+                    </select>
+                </div>
+                
+                <!-- Content Status -->
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 w-1/3">
+                        <input type="checkbox" x-model="bulkForm.updateStatus" class="rounded border-gray-300">
+                        <span class="text-sm font-medium text-gray-700">Status</span>
+                    </label>
+                    <select x-model="bulkForm.status" :disabled="!bulkForm.updateStatus"
+                            class="flex-1 border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm disabled:bg-gray-100">
+                        <option value="ready">Ready</option>
+                        <option value="test_ad">Test Ad</option>
+                        <option value="active_ad">Active Ad</option>
+                        <option value="paused">Paused</option>
+                        <option value="expired">Expired</option>
+                    </select>
+                </div>
+                
+                <!-- Expire Date -->
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 w-1/3">
+                        <input type="checkbox" x-model="bulkForm.updateExpireDate" class="rounded border-gray-300">
+                        <span class="text-sm font-medium text-gray-700">วันหมดอายุ</span>
+                    </label>
+                    <input type="date" x-model="bulkForm.expire_date" :disabled="!bulkForm.updateExpireDate"
+                           class="flex-1 border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm disabled:bg-gray-100">
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+                <button @click="showBulkModal = false" 
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg text-sm font-medium">
+                    ยกเลิก
+                </button>
+                <button @click="saveBulkUpdate()" :disabled="savingBulk"
+                        class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                    <span x-text="savingBulk ? 'กำลังบันทึก...' : 'บันทึก'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div x-show="toast.show" x-transition
+         class="fixed bottom-6 right-6 px-6 py-3 rounded-xl shadow-lg text-white z-50"
+         :class="toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'">
+        <span x-text="toast.message"></span>
+    </div>
+</div>
+
+<script>
+function tiktokContentsPage() {
+    return {
+        contents: [],
+        loading: true,
+        syncing: false,
+        calculating: false,
+        importing: false,
+        saving: false,
+        savingBoost: false,
+        savingBulk: false,
+        
+        showImport: false,
+        showEditModal: false,
+        showAdsModal: false,
+        showBoostModal: false,
+        showBulkModal: false,
+        
+        importText: '',
+        currentPage: 1,
+        pageSize: 30,
+        totalItems: 0,
+        totalPages: 1,
+        selectedIds: [],
+        
+        // Sorting
+        sortField: 'platform_created_at',
+        sortDir: 'desc',
+        
+        // Modal data
+        editingContent: null,
+        adsContent: null,
+        adsDetails: [],
+        adsLoading: false,
+        boostContent: null,
+        employees: [],
+        
+        // Forms
+        editForm: {
+            products: '',
+            content_type: 'sale',
+            status: 'ready',
+            content_source: 'influencer',
+            employee_id: '',
+            influencer_cost: '',
+            expire_date: ''
+        },
+        boostForm: {
+            factor: '1.5',
+            duration: '7',
+            reason: 'High Performance',
+            customReason: ''
+        },
+        bulkForm: {
+            updateContentType: false,
+            content_type: 'sale',
+            updateStatus: false,
+            status: 'ready',
+            updateExpireDate: false,
+            expire_date: ''
+        },
+        
+        filters: {
+            status: '',
+            content_type: '',
+            content_source: '',
+            search: '',
+            creator: '',
+            expiring: ''
+        },
+        stats: {
+            total: {{ stats.total }},
+            avg_pfm: {{ stats.avg_pfm }},
+            total_views: 0,
+            active_ads: 0,
+            total_cost: 0
+        },
+        toast: {
+            show: false,
+            message: '',
+            type: 'success'
+        },
+        
+        init() {
+            // Read filters from URL query params
+            this.readFiltersFromURL();
+            this.loadContents();
+            this.loadEmployees();
+        },
+        
+        // Read filters from URL and apply
+        readFiltersFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            if (urlParams.has('status')) this.filters.status = urlParams.get('status');
+            if (urlParams.has('content_type')) this.filters.content_type = urlParams.get('content_type');
+            if (urlParams.has('content_source')) this.filters.content_source = urlParams.get('content_source');
+            if (urlParams.has('search')) this.filters.search = urlParams.get('search');
+            if (urlParams.has('creator')) this.filters.creator = urlParams.get('creator');
+            if (urlParams.has('expiring')) this.filters.expiring = urlParams.get('expiring');
+            if (urlParams.has('page')) this.currentPage = parseInt(urlParams.get('page')) || 1;
+            // Sort params
+            if (urlParams.has('sort')) this.sortField = urlParams.get('sort');
+            if (urlParams.has('dir')) this.sortDir = urlParams.get('dir');
+        },
+        
+        // Update URL with current filters (without page reload)
+        updateURL() {
+            const params = new URLSearchParams();
+            
+            if (this.filters.status) params.set('status', this.filters.status);
+            if (this.filters.content_type) params.set('content_type', this.filters.content_type);
+            if (this.filters.content_source) params.set('content_source', this.filters.content_source);
+            if (this.filters.search) params.set('search', this.filters.search);
+            if (this.filters.creator) params.set('creator', this.filters.creator);
+            if (this.filters.expiring) params.set('expiring', this.filters.expiring);
+            if (this.currentPage > 1) params.set('page', this.currentPage);
+            // Sort params
+            if (this.sortField && this.sortField !== 'platform_created_at') params.set('sort', this.sortField);
+            if (this.sortDir && this.sortDir !== 'desc') params.set('dir', this.sortDir);
+            
+            const newURL = params.toString() 
+                ? `${window.location.pathname}?${params.toString()}`
+                : window.location.pathname;
+            
+            // Update URL without page reload
+            window.history.replaceState({}, '', newURL);
+        },
+        
+        async loadContents() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams({
+                    page: this.currentPage,
+                    page_size: this.pageSize,
+                    platform: 'tiktok',
+                    ...this.filters
+                });
+                
+                const response = await fetch(`/api/v1/contents?${params}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.contents = data.data;
+                    this.totalItems = data.total;
+                    this.totalPages = data.pages;
+                    
+                    // Update URL with current filters
+                    this.updateURL();
+                    
+                    // Calculate additional stats
+                    this.stats.total = data.total;
+                    this.stats.total_views = this.contents.reduce((sum, c) => sum + (c.views || 0), 0);
+                    this.stats.active_ads = this.contents.filter(c => c.ads_count > 0).length;
+                    this.stats.total_cost = this.contents.reduce((sum, c) => sum + (c.ads_total_cost || 0), 0);
+                    
+                    // Calculate avg PFM
+                    const pfmSum = this.contents.reduce((sum, c) => sum + (c.pfm_score || 0), 0);
+                    this.stats.avg_pfm = this.contents.length > 0 ? pfmSum / this.contents.length : 0;
+                }
+            } catch (err) {
+                console.error('Error loading contents:', err);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async loadEmployees() {
+            try {
+                const response = await fetch('/api/v1/employees');
+                const data = await response.json();
+                if (data.success) {
+                    this.employees = data.data;
+                }
+            } catch (err) {
+                console.error('Error loading employees:', err);
+            }
+        },
+        
+        async syncContent() {
+            this.syncing = true;
+            try {
+                const response = await fetch('/api/v1/contents/sync', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast(`Sync สำเร็จ! ${data.data.synced} รายการ`, 'success');
+                    this.loadContents();
+                } else {
+                    this.showToast(data.message || 'Sync ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.syncing = false;
+            }
+        },
+        
+        async recalculatePFM() {
+            this.calculating = true;
+            try {
+                const response = await fetch('/api/v1/contents/recalculate-pfm', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast(`อัพเดท PFM สำเร็จ! ${data.data.updated} รายการ`, 'success');
+                    this.loadContents();
+                } else {
+                    this.showToast('คำนวณ PFM ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.calculating = false;
+            }
+        },
+
+        async importTikTok() {
+            if (!this.importText.trim()) {
+                this.showToast('กรุณากรอก item_id หรือ URL', 'error');
+                return;
+            }
+
+            this.importing = true;
+            try {
+                const lines = this.importText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+                const response = await fetch('/api/v1/contents/import-tiktok', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: lines }),
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    this.showToast(data.message || 'นำเข้า Content สำเร็จ', 'success');
+                    this.importText = '';
+                    this.showImport = false;
+                    this.loadContents();
+                } else {
+                    this.showToast(data.message || 'นำเข้าไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.importing = false;
+            }
+        },
+        
+        toggleSelectAll(event) {
+            if (event.target.checked) {
+                this.selectedIds = this.contents.map(c => c.id);
+            } else {
+                this.selectedIds = [];
+            }
+        },
+        
+        // Filter by Creator
+        filterByCreator(creatorName) {
+            this.filters.creator = creatorName;
+            this.currentPage = 1;
+            this.loadContents();
+        },
+        
+        // Filter by Content Type
+        filterByContentType(contentType) {
+            this.filters.content_type = contentType || '';
+            this.currentPage = 1;
+            this.loadContents();
+        },
+        
+        // Filter by Content Source
+        filterByContentSource(contentSource) {
+            this.filters.content_source = contentSource || '';
+            this.currentPage = 1;
+            this.loadContents();
+        },
+        
+        // Filter by Status
+        filterByStatus(status) {
+            this.filters.status = status || '';
+            this.currentPage = 1;
+            this.loadContents();
+        },
+        
+        // Filter by Expiring Soon
+        filterByExpiring() {
+            this.filters.expiring = 'soon';
+            this.currentPage = 1;
+            this.loadContents();
+        },
+        
+        // Clear specific filter
+        clearFilter(filterName) {
+            this.filters[filterName] = '';
+            this.currentPage = 1;
+            this.loadContents();
+        },
+        
+        clearCreatorFilter() {
+            this.filters.creator = '';
+            this.loadContents();
+        },
+        
+        // Edit Content Modal
+        editContent(content) {
+            this.editingContent = content;
+            this.editForm = {
+                products: (content.product_codes || []).join(', '),
+                content_type: content.content_type || 'sale',
+                status: content.status || 'ready',
+                content_source: content.content_source || 'influencer',
+                employee_id: content.employee_id || '',
+                influencer_cost: content.influencer_cost || '',
+                expire_date: content.expire_date || ''
+            };
+            this.showEditModal = true;
+        },
+        
+        async saveContentEdit() {
+            this.saving = true;
+            try {
+                const response = await fetch(`/api/v1/contents/${this.editingContent.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        product_codes: this.editForm.products.split(',').map(p => p.trim()).filter(p => p),
+                        content_type: this.editForm.content_type,
+                        status: this.editForm.status,
+                        content_source: this.editForm.content_source,
+                        employee_id: this.editForm.employee_id || null,
+                        influencer_cost: this.editForm.influencer_cost || null,
+                        expire_date: this.editForm.expire_date || null
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast('บันทึกสำเร็จ', 'success');
+                    this.showEditModal = false;
+                    this.loadContents();
+                } else {
+                    this.showToast(data.message || 'บันทึกไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        // Ads Details Modal
+        async showAdsDetails(content, refresh = true) {
+            this.adsContent = content;
+            this.adsDetails = [];
+            this.showAdsModal = true;
+            this.adsLoading = true;
+            
+            try {
+                // Add refresh=true to fetch real-time data from TikTok API
+                const response = await fetch(`/api/v1/contents/${content.id}/ads?refresh=${refresh}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.adsDetails = data.data;
+                    
+                    // Update the content in the table with new ads data
+                    if (data.meta) {
+                        const idx = this.contents.findIndex(c => c.id === content.id);
+                        if (idx !== -1) {
+                            this.contents[idx].ads_count = data.meta.total_ads;
+                            this.contents[idx].ace_ad_count = data.meta.ace_count;
+                            this.contents[idx].abx_ad_count = data.meta.abx_count;
+                            this.contents[idx].ads_total_cost = data.meta.total_cost;
+                        }
+                        // Update modal header info
+                        this.adsContent = {
+                            ...this.adsContent,
+                            ads_count: data.meta.total_ads,
+                            ace_ad_count: data.meta.ace_count,
+                            abx_ad_count: data.meta.abx_count,
+                            ads_total_cost: data.meta.total_cost
+                        };
+                    }
+                }
+            } catch (err) {
+                console.error('Error loading ads details:', err);
+            } finally {
+                this.adsLoading = false;
+            }
+        },
+        
+        // Update Ad Status (ENABLE/DISABLE)
+        async updateAdStatus(ad, status) {
+            if (!confirm(`ยืนยันเปลี่ยน Status เป็น ${status}?`)) return;
+            
+            ad.updating = true;
+            try {
+                const response = await fetch(`/api/v1/contents/${this.adsContent.id}/ads/${ad.adgroup_id}/status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: status,
+                        advertiser_id: ad.advertiser_id
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    ad.status = status;
+                    ad.operation_status = status;
+                    ad.adgroup_status = status;
+                    this.showToast(`อัปเดท Status เป็น ${status} สำเร็จ`, 'success');
+                } else {
+                    this.showToast(data.message || 'ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                console.error('Error updating status:', err);
+                this.showToast('เกิดข้อผิดพลาดในการอัปเดท Status', 'error');
+            } finally {
+                ad.updating = false;
+            }
+        },
+        
+        // Update Ad Budget
+        async updateAdBudget(ad) {
+            const newBudget = parseFloat(ad.editBudget ?? ad.budget);
+            
+            if (isNaN(newBudget) || newBudget < 200) {
+                this.showToast('Budget ต้องมากกว่า 200 บาท', 'error');
+                return;
+            }
+            
+            ad.updating = true;
+            try {
+                const response = await fetch(`/api/v1/contents/${this.adsContent.id}/ads/${ad.adgroup_id}/budget`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        budget: newBudget,
+                        advertiser_id: ad.advertiser_id
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    ad.budget = newBudget;
+                    ad.adgroup_budget = newBudget;
+                    this.showToast(`อัปเดท Budget เป็น ฿${this.formatNumber(newBudget)} สำเร็จ`, 'success');
+                } else {
+                    this.showToast(data.message || 'ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                console.error('Error updating budget:', err);
+                this.showToast('เกิดข้อผิดพลาดในการอัปเดท Budget', 'error');
+            } finally {
+                ad.updating = false;
+            }
+        },
+        
+        // Boost Modal
+        toggleBoost(content) {
+            this.boostContent = content;
+            this.boostForm = {
+                factor: String(content.boost_factor || 1.5),
+                duration: '7',
+                reason: 'High Performance',
+                customReason: ''
+            };
+            this.showBoostModal = true;
+        },
+        
+        async saveBoost() {
+            this.savingBoost = true;
+            try {
+                const reason = this.boostForm.reason === 'Other' ? this.boostForm.customReason : this.boostForm.reason;
+                const response = await fetch(`/api/v1/contents/${this.boostContent.id}/boost`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        boost_factor: parseFloat(this.boostForm.factor),
+                        boost_duration: parseInt(this.boostForm.duration),
+                        boost_reason: reason
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast('ตั้งค่า Boost สำเร็จ', 'success');
+                    this.showBoostModal = false;
+                    this.loadContents();
+                } else {
+                    this.showToast(data.message || 'ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.savingBoost = false;
+            }
+        },
+        
+        async removeBoost() {
+            if (!confirm('ยืนยันยกเลิก Boost?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/contents/${this.boostContent.id}/boost`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast('ยกเลิก Boost สำเร็จ', 'success');
+                    this.showBoostModal = false;
+                    this.loadContents();
+                } else {
+                    this.showToast(data.message || 'ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            }
+        },
+        
+        // Bulk Update Modal
+        openBulkUpdate() {
+            if (this.selectedIds.length === 0) {
+                this.showToast('กรุณาเลือกอย่างน้อย 1 รายการ', 'error');
+                return;
+            }
+            this.showBulkModal = true;
+        },
+        
+        async saveBulkUpdate() {
+            this.savingBulk = true;
+            try {
+                const updates = {};
+                if (this.bulkForm.updateContentType) updates.content_type = this.bulkForm.content_type;
+                if (this.bulkForm.updateStatus) updates.status = this.bulkForm.status;
+                if (this.bulkForm.updateExpireDate) updates.expire_date = this.bulkForm.expire_date;
+                
+                const response = await fetch('/api/v1/contents/bulk-update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ids: this.selectedIds,
+                        updates: updates
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast(`อัปเดต ${data.data.updated} รายการสำเร็จ`, 'success');
+                    this.showBulkModal = false;
+                    this.selectedIds = [];
+                    this.loadContents();
+                } else {
+                    this.showToast(data.message || 'ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.savingBulk = false;
+            }
+        },
+        
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => { this.toast.show = false; }, 3000);
+        },
+        
+        // Sorting
+        sortBy(field) {
+            if (this.sortField === field) {
+                this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
+            } else {
+                this.sortField = field;
+                this.sortDir = 'desc';
+            }
+            this.sortContents();
+            this.updateURL(); // Persist sort to URL
+        },
+        
+        // Get sort field label for display
+        getSortFieldLabel(field) {
+            const labels = {
+                'views': '👁️ Views',
+                'likes': '❤️ Likes',
+                'comments': '💬 Comments',
+                'shares': '🔄 Shares',
+                'influencer_cost': '👤 Influ Cost',
+                'ads_total_cost': '📢 Ads Cost',
+                'pfm_score': 'PFM',
+                'platform_created_at': 'Date',
+                'creator_name': 'Creator',
+                'ads_count': 'Ads'
+            };
+            return labels[field] || field;
+        },
+        
+        sortContents() {
+            const field = this.sortField;
+            const dir = this.sortDir;
+            
+            this.contents.sort((a, b) => {
+                let aVal = a[field];
+                let bVal = b[field];
+                
+                // Handle null/undefined
+                if (aVal == null) aVal = field === 'platform_created_at' ? '' : 0;
+                if (bVal == null) bVal = field === 'platform_created_at' ? '' : 0;
+                
+                // String comparison
+                if (typeof aVal === 'string' && typeof bVal === 'string') {
+                    return dir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                }
+                
+                // Numeric comparison
+                return dir === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+        },
+        
+        // Helper functions for display
+        getContentTypeLabel(type) {
+            const labels = {
+                'sale': 'Sale',
+                'branding': 'Branding',
+                'review': 'Review',
+                'tutorial': 'Tutorial',
+                'other': 'Other'
+            };
+            return labels[type] || 'Other';
+        },
+        
+        getContentSourceLabel(source) {
+            const labels = {
+                'influencer': '👤 Influencer',
+                'page': '📄 Page',
+                'staff': '👷 Staff'
+            };
+            return labels[source] || '👤 Influencer';
+        },
+        
+        isExpiringSoon(dateStr) {
+            if (!dateStr) return false;
+            const expireDate = new Date(dateStr);
+            const today = new Date();
+            const diffDays = Math.ceil((expireDate - today) / (1000 * 60 * 60 * 24));
+            return diffDays <= 7 && diffDays >= 0;
+        },
+        
+        formatExpireDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+        },
+        
+        formatNumber(num) {
+            if (!num) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toLocaleString();
+        },
+        
+        formatCurrency(num) {
+            if (!num) return '฿0';
+            return '฿' + this.formatNumber(num);
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+        },
+        
+        formatTime(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+        },
+        
+        formatDuration(seconds) {
+            if (!seconds) return '-';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            if (mins > 0) return `${mins}:${secs.toString().padStart(2, '0')}`;
+            return `${secs}s`;
+        }
+    }
+}
+</script>
+{% endblock %}
+

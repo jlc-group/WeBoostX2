@@ -2,8 +2,11 @@
 WeBoostX 2.0 - FastAPI Application Entry Point
 """
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.api.v1 import api_router, page_router
@@ -60,6 +63,11 @@ def create_app() -> FastAPI:
     
     # Include page routes (HTML pages)
     app.include_router(page_router)
+    
+    # Mount static files
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
     
     return app
 

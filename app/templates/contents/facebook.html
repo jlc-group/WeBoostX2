@@ -1,0 +1,46 @@
+{% extends "layouts/app.html" %}
+
+{% block page_title %}Facebook Contents{% endblock %}
+{% block page_subtitle %}จัดการ Facebook Content ทั้งหมด{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Coming Soon Card -->
+    <div class="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
+        <div class="w-20 h-20 bg-blue-100 rounded-full mx-auto mb-6 flex items-center justify-center">
+            <svg class="w-10 h-10 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800 mb-3">Facebook Content</h2>
+        <p class="text-gray-500 mb-6 max-w-md mx-auto">
+            การ Sync และจัดการ Facebook Content กำลังอยู่ระหว่างการพัฒนา
+            จะสามารถใช้งานได้เร็วๆ นี้
+        </p>
+        
+        <!-- Stats placeholder -->
+        <div class="flex justify-center gap-6">
+            <div class="text-center">
+                <p class="text-3xl font-bold text-gray-800">{{ stats.total }}</p>
+                <p class="text-sm text-gray-500">Contents</p>
+            </div>
+            <div class="text-center">
+                <p class="text-3xl font-bold text-gray-400">-</p>
+                <p class="text-sm text-gray-500">Avg Score</p>
+            </div>
+        </div>
+        
+        <!-- Features coming -->
+        <div class="mt-8 pt-8 border-t border-gray-100">
+            <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">คุณสมบัติที่กำลังพัฒนา</h3>
+            <div class="flex flex-wrap justify-center gap-2">
+                <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">Page Video Sync</span>
+                <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">Reels Integration</span>
+                <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">FB Score Calculation</span>
+                <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">Ads Performance</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

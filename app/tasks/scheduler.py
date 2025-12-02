@@ -44,6 +44,28 @@ def start_scheduler():
     )
     
     # ============================================
+    # Ads Spend Sync (every 60 minutes)
+    # ============================================
+    scheduler.add_job(
+        func=sync_ads_spend_job,
+        trigger=IntervalTrigger(minutes=60),
+        id="sync_ads_spend",
+        name="Sync ads spend data from TikTok",
+        replace_existing=True,
+    )
+    
+    # ============================================
+    # ACE/ABX Details Update (every 60 minutes, after ads sync)
+    # ============================================
+    scheduler.add_job(
+        func=update_ace_abx_job,
+        trigger=IntervalTrigger(minutes=60),
+        id="update_ace_abx",
+        name="Update ACE/ABX details from ads_details",
+        replace_existing=True,
+    )
+    
+    # ============================================
     # Score Calculation (every 30 minutes)
     # ============================================
     scheduler.add_job(
@@ -140,6 +162,31 @@ def sync_ads_job():
         print(f"[{datetime.now()}] Ads sync completed")
     except Exception as e:
         print(f"[{datetime.now()}] Ads sync failed: {e}")
+
+
+def sync_ads_spend_job():
+    """Sync ads spend data from TikTok Report API"""
+    print(f"[{datetime.now()}] Running ads spend sync job...")
+    try:
+        from app.tasks.sync_tasks import sync_ads_spend_data, update_all_ads_total_cost
+        # Step 1: Fetch spend data from TikTok and update ads_details
+        sync_ads_spend_data()
+        # Step 2: Recalculate ads_total_cost from ads_details
+        update_all_ads_total_cost()
+        print(f"[{datetime.now()}] Ads spend sync completed")
+    except Exception as e:
+        print(f"[{datetime.now()}] Ads spend sync failed: {e}")
+
+
+def update_ace_abx_job():
+    """Update ACE/ABX ad counts and details from ads_details"""
+    print(f"[{datetime.now()}] Running ACE/ABX update job...")
+    try:
+        from app.tasks.sync_tasks import update_ace_abx_details
+        update_ace_abx_details()
+        print(f"[{datetime.now()}] ACE/ABX update completed")
+    except Exception as e:
+        print(f"[{datetime.now()}] ACE/ABX update failed: {e}")
 
 
 def calculate_scores_job():

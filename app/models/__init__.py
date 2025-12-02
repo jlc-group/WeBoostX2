@@ -42,6 +42,9 @@ from app.models.task import TaskLog, SyncStatus, TaskStatus
 # System models
 from app.models.system import AppSetting
 
+# Employee/Influencer models
+from app.models.employee import Employee, Influencer, ContentCreatorAssignment
+
 
 __all__ = [
     # Base
@@ -81,4 +84,7 @@ __all__ = [
 
     # System
     "AppSetting",
+    
+    # Employee/Influencer
+    "Employee", "Influencer", "ContentCreatorAssignment",
 ]

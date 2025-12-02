@@ -125,7 +125,7 @@ async def dashboard_page(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/contents", response_class=HTMLResponse)
 async def contents_page(request: Request, db: Session = Depends(get_db)):
-    """Contents list page"""
+    """Contents list page (all platforms)"""
     
     # Mock user for template
     class MockUser:
@@ -137,6 +137,99 @@ async def contents_page(request: Request, db: Session = Depends(get_db)):
         "request": request,
         "current_user": MockUser(),
         "active_page": "contents"
+    })
+
+
+@router.get("/contents/tiktok", response_class=HTMLResponse)
+async def contents_tiktok_page(request: Request, db: Session = Depends(get_db)):
+    """TikTok Contents page"""
+    from app.models.enums import Platform
+    from sqlalchemy import func
+    
+    # Get TikTok specific stats
+    total_contents = db.query(Content).filter(
+        Content.platform == Platform.TIKTOK,
+        Content.deleted_at.is_(None)
+    ).count()
+    
+    avg_pfm = db.query(func.avg(Content.pfm_score)).filter(
+        Content.platform == Platform.TIKTOK,
+        Content.pfm_score.isnot(None),
+        Content.deleted_at.is_(None)
+    ).scalar() or 0
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    return templates.TemplateResponse("contents/tiktok.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "contents_tiktok",
+        "stats": {
+            "total": total_contents,
+            "avg_pfm": float(avg_pfm)
+        }
+    })
+
+
+@router.get("/contents/facebook", response_class=HTMLResponse)
+async def contents_facebook_page(request: Request, db: Session = Depends(get_db)):
+    """Facebook Contents page"""
+    from app.models.enums import Platform
+    from sqlalchemy import func
+    
+    total_contents = db.query(Content).filter(
+        Content.platform == Platform.FACEBOOK,
+        Content.deleted_at.is_(None)
+    ).count()
+    
+    avg_fb_score = db.query(func.avg(Content.fb_score)).filter(
+        Content.platform == Platform.FACEBOOK,
+        Content.fb_score.isnot(None),
+        Content.deleted_at.is_(None)
+    ).scalar() or 0
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    return templates.TemplateResponse("contents/facebook.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "contents_facebook",
+        "stats": {
+            "total": total_contents,
+            "avg_score": float(avg_fb_score)
+        }
+    })
+
+
+@router.get("/contents/instagram", response_class=HTMLResponse)
+async def contents_instagram_page(request: Request, db: Session = Depends(get_db)):
+    """Instagram Contents page"""
+    from app.models.enums import Platform
+    from sqlalchemy import func
+    
+    total_contents = db.query(Content).filter(
+        Content.platform == Platform.INSTAGRAM,
+        Content.deleted_at.is_(None)
+    ).count()
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    return templates.TemplateResponse("contents/instagram.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "contents_instagram",
+        "stats": {
+            "total": total_contents
+        }
     })
 
 
@@ -227,16 +320,90 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/settings/employees", response_class=HTMLResponse)
+async def settings_employees_page(request: Request, db: Session = Depends(get_db)):
+    """Employees management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/employees.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "settings_employees",
+        },
+    )
+
+
+@router.get("/settings/influencers", response_class=HTMLResponse)
+async def settings_influencers_page(request: Request, db: Session = Depends(get_db)):
+    """Influencers management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/influencers.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "settings_influencers",
+        },
+    )
+
+
+@router.get("/settings/content-types", response_class=HTMLResponse)
+async def settings_content_types_page(request: Request, db: Session = Depends(get_db)):
+    """Content Types management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/content_types.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "settings_content_types",
+        },
+    )
+
+
+@router.get("/settings/targeting", response_class=HTMLResponse)
+async def settings_targeting_page(request: Request, db: Session = Depends(get_db)):
+    """Targeting Templates management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/targeting.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "settings_targeting",
+        },
+    )
+
+
 @router.get("/platforms/tiktok", response_class=HTMLResponse)
 async def tiktok_page(request: Request):
-    """TikTok platform page"""
-    # TODO: Create TikTok template
-    return RedirectResponse(url="/dashboard")
+    """TikTok platform page - redirect to contents"""
+    return RedirectResponse(url="/contents/tiktok")
 
 
 @router.get("/platforms/facebook", response_class=HTMLResponse)
 async def facebook_page(request: Request):
-    """Facebook platform page"""
-    # TODO: Create Facebook template
-    return RedirectResponse(url="/dashboard")
+    """Facebook platform page - redirect to contents"""
+    return RedirectResponse(url="/contents/facebook")
 

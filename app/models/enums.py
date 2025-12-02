@@ -82,16 +82,23 @@ class CampaignObjective(str, enum.Enum):
 
 class OptimizationGoal(str, enum.Enum):
     """Optimization goals for ad delivery"""
+    # Common goals
     IMPRESSIONS = "impressions"
     REACH = "reach"
     VIDEO_VIEW = "video_view"
     THRUPLAY = "thruplay"
     LINK_CLICK = "link_click"
     LANDING_PAGE_VIEW = "landing_page_view"
+    
+    # Conversion goals
+    CONVERSION = "conversion"
     ADD_TO_CART = "add_to_cart"
     PURCHASE = "purchase"
     VALUE = "value"  # ROAS optimization
+    
+    # Lead & App goals
     LEAD = "lead"
+    APP_INSTALL = "app_install"
 
 
 class AdStatus(str, enum.Enum):

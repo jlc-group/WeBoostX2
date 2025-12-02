@@ -1,0 +1,353 @@
+{% extends "layouts/app.html" %}
+
+{% block page_title %}จัดการพนักงาน{% endblock %}
+{% block page_subtitle %}Master Data - รายชื่อพนักงานที่ทำ Content{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="employeesPage()">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <!-- Search -->
+            <div class="relative">
+                <input type="text" x-model="search" @input.debounce.300ms="loadEmployees()"
+                       placeholder="ค้นหาพนักงาน..."
+                       class="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white w-64 text-sm">
+                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            
+            <!-- Active Filter -->
+            <select x-model="activeFilter" @change="loadEmployees()"
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white text-sm">
+                <option value="">ทั้งหมด</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+            </select>
+        </div>
+        
+        <button @click="openAddModal()" 
+                class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors text-sm font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            <span>เพิ่มพนักงาน</span>
+        </button>
+    </div>
+    
+    <!-- Stats -->
+    <div class="grid grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p class="text-2xl font-bold text-gray-800" x-text="stats.total"></p>
+            <p class="text-xs text-gray-500">พนักงานทั้งหมด</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p class="text-2xl font-bold text-green-600" x-text="stats.active"></p>
+            <p class="text-xs text-gray-500">Active</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p class="text-2xl font-bold text-gray-400" x-text="stats.inactive"></p>
+            <p class="text-xs text-gray-500">Inactive</p>
+        </div>
+    </div>
+    
+    <!-- Table -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+        <div x-show="loading" class="p-12 text-center">
+            <svg class="animate-spin w-8 h-8 text-gray-400 mx-auto" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+        
+        <table x-show="!loading" class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">รหัส</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ชื่อ-นามสกุล</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ชื่อเล่น</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">แผนก</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">TikTok</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">สถานะ</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                <template x-for="emp in employees" :key="emp.id">
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 font-mono font-medium text-gray-800" x-text="emp.employee_code"></td>
+                        <td class="px-6 py-4">
+                            <p class="font-medium text-gray-800" x-text="emp.full_name"></p>
+                            <p class="text-xs text-gray-400" x-text="emp.email"></p>
+                        </td>
+                        <td class="px-6 py-4 text-gray-600" x-text="emp.nickname || '-'"></td>
+                        <td class="px-6 py-4 text-gray-600" x-text="emp.department || '-'"></td>
+                        <td class="px-6 py-4">
+                            <span x-show="emp.tiktok_username" class="text-blue-600" x-text="'@' + emp.tiktok_username"></span>
+                            <span x-show="!emp.tiktok_username" class="text-gray-400">-</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                  :class="emp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'"
+                                  x-text="emp.is_active ? 'Active' : 'Inactive'"></span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button @click="editEmployee(emp)" class="p-2 hover:bg-gray-100 rounded-lg" title="แก้ไข">
+                                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                </button>
+                                <button @click="deleteEmployee(emp)" class="p-2 hover:bg-red-50 rounded-lg" title="ลบ">
+                                    <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </template>
+                <tr x-show="employees.length === 0 && !loading">
+                    <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                        ไม่พบข้อมูลพนักงาน
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Add/Edit Modal -->
+    <div x-show="showModal" x-transition
+         class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" x-cloak>
+        <div @click.away="showModal = false" 
+             class="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-800" x-text="isEditing ? 'แก้ไขพนักงาน' : 'เพิ่มพนักงาน'"></h3>
+                <button @click="showModal = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">รหัสพนักงาน *</label>
+                        <input type="text" x-model="form.employee_code" :disabled="isEditing"
+                               class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm disabled:bg-gray-100"
+                               placeholder="EMP001">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อเล่น</label>
+                        <input type="text" x-model="form.nickname" 
+                               class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                               placeholder="ชื่อเล่น">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ *</label>
+                        <input type="text" x-model="form.first_name" 
+                               class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                               placeholder="ชื่อ">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">นามสกุล *</label>
+                        <input type="text" x-model="form.last_name" 
+                               class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                               placeholder="นามสกุล">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">แผนก</label>
+                        <input type="text" x-model="form.department" 
+                               class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                               placeholder="Content Team">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ตำแหน่ง</label>
+                        <input type="text" x-model="form.position" 
+                               class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                               placeholder="Content Creator">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" x-model="form.email" 
+                           class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                           placeholder="email@company.com">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">TikTok Username</label>
+                    <input type="text" x-model="form.tiktok_username" 
+                           class="w-full border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                           placeholder="@username">
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" x-model="form.is_active" class="rounded border-gray-300">
+                    <label class="text-sm text-gray-700">Active</label>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
+                <button @click="showModal = false" 
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg text-sm font-medium">
+                    ยกเลิก
+                </button>
+                <button @click="saveEmployee()" :disabled="saving"
+                        class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                    <span x-text="saving ? 'กำลังบันทึก...' : 'บันทึก'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div x-show="toast.show" x-transition
+         class="fixed bottom-6 right-6 px-6 py-3 rounded-xl shadow-lg text-white z-50"
+         :class="toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'">
+        <span x-text="toast.message"></span>
+    </div>
+</div>
+
+<script>
+function employeesPage() {
+    return {
+        employees: [],
+        loading: true,
+        saving: false,
+        showModal: false,
+        isEditing: false,
+        editingId: null,
+        search: '',
+        activeFilter: '',
+        stats: { total: 0, active: 0, inactive: 0 },
+        form: {
+            employee_code: '',
+            first_name: '',
+            last_name: '',
+            nickname: '',
+            department: '',
+            position: '',
+            email: '',
+            tiktok_username: '',
+            is_active: true
+        },
+        toast: { show: false, message: '', type: 'success' },
+        
+        init() {
+            this.loadEmployees();
+        },
+        
+        async loadEmployees() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams({ page_size: 200 });
+                if (this.search) params.append('search', this.search);
+                if (this.activeFilter) params.append('is_active', this.activeFilter);
+                
+                const response = await fetch(`/api/v1/employees?${params}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.employees = data.data;
+                    this.stats.total = data.total;
+                    this.stats.active = this.employees.filter(e => e.is_active).length;
+                    this.stats.inactive = this.employees.filter(e => !e.is_active).length;
+                }
+            } catch (err) {
+                console.error('Error loading employees:', err);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        openAddModal() {
+            this.isEditing = false;
+            this.editingId = null;
+            this.form = {
+                employee_code: '',
+                first_name: '',
+                last_name: '',
+                nickname: '',
+                department: '',
+                position: '',
+                email: '',
+                tiktok_username: '',
+                is_active: true
+            };
+            this.showModal = true;
+        },
+        
+        editEmployee(emp) {
+            this.isEditing = true;
+            this.editingId = emp.id;
+            this.form = { ...emp };
+            this.showModal = true;
+        },
+        
+        async saveEmployee() {
+            if (!this.form.employee_code || !this.form.first_name || !this.form.last_name) {
+                this.showToast('กรุณากรอกข้อมูลที่จำเป็น', 'error');
+                return;
+            }
+            
+            this.saving = true;
+            try {
+                const url = this.isEditing ? `/api/v1/employees/${this.editingId}` : '/api/v1/employees';
+                const method = this.isEditing ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.form)
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast(this.isEditing ? 'อัปเดตสำเร็จ' : 'เพิ่มสำเร็จ', 'success');
+                    this.showModal = false;
+                    this.loadEmployees();
+                } else {
+                    this.showToast(data.message || 'เกิดข้อผิดพลาด', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+        
+        async deleteEmployee(emp) {
+            if (!confirm(`ยืนยันลบ ${emp.full_name}?`)) return;
+            
+            try {
+                const response = await fetch(`/api/v1/employees/${emp.id}`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.showToast('ลบสำเร็จ', 'success');
+                    this.loadEmployees();
+                } else {
+                    this.showToast(data.message || 'เกิดข้อผิดพลาด', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            }
+        },
+        
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => { this.toast.show = false; }, 3000);
+        }
+    }
+}
+</script>
+{% endblock %}
+
