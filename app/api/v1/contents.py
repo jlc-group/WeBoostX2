@@ -1,17 +1,21 @@
 """
 Content API endpoints
 """
+import re
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
-from typing import Optional
 
-from app.core.deps import get_db
+from app.core.deps import get_db, require_admin
 from app.core.config import settings
 from app.models import Content
 from app.models.enums import Platform, ContentStatus, ContentType
 from app.schemas.common import DataResponse, ListResponse
+from app.schemas.contents import TikTokImportRequest
 from app.services.tiktok_service import TikTokService
+from app.models.user import User
 
 router = APIRouter(prefix="/contents", tags=["Contents"])
 
@@ -208,6 +212,81 @@ def recalculate_pfm(db: Session = Depends(get_db)):
         success=True,
         data={"updated": updated},
         message=f"Updated PFM for {updated} contents"
+    )
+
+
+_TIKTOK_ITEM_ID_RE = re.compile(r"video/(\d+)")
+_DIGITS_RE = re.compile(r"^\d+$")
+
+
+def _extract_item_id(raw: str) -> Optional[str]:
+    """ดึง item_id จาก string ที่อาจเป็นทั้งเลขล้วนหรือ TikTok URL"""
+    if not raw:
+        return None
+    s = raw.strip()
+    if not s:
+        return None
+
+    # ถ้าเป็น URL ที่มี /video/1234567890
+    m = _TIKTOK_ITEM_ID_RE.search(s)
+    if m:
+        return m.group(1)
+
+    # ถ้าเป็นเลขล้วน
+    if _DIGITS_RE.match(s):
+        return s
+
+    return None
+
+
+@router.post("/import-tiktok", response_model=DataResponse[dict])
+def import_tiktok_content(
+    payload: TikTokImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Import TikTok Content เข้าระบบด้วย item_id หรือ URL
+    - รับรายการ item_id/URL ทีละบรรทัด
+    - ดึง item details จาก API เดิม
+    - สร้าง/อัปเดต Content ในตาราง contents
+    """
+
+    raw_items = payload.items or []
+    item_ids = []
+
+    for raw in raw_items:
+        item_id = _extract_item_id(raw)
+        if item_id:
+            item_ids.append(item_id)
+
+    # unique และตัดค่าว่างออก
+    seen = set()
+    unique_ids = []
+    for i in item_ids:
+        if i and i not in seen:
+            seen.add(i)
+            unique_ids.append(i)
+
+    if not unique_ids:
+        return DataResponse(
+            success=False,
+            message="ไม่พบ TikTok item_id ที่ถูกต้องในรายการที่ส่งมา",
+        )
+
+    result = TikTokService.ensure_contents_for_item_ids(unique_ids, db=db)
+
+    msg = (
+        f"นำเข้า TikTok content สำเร็จ "
+        f"(requested={result.get('requested', 0)}, "
+        f"created/updated={result.get('created_or_updated', 0)}, "
+        f"failed={result.get('failed', 0)})"
+    )
+
+    return DataResponse(
+        success=True,
+        data=result,
+        message=msg,
     )
 
 

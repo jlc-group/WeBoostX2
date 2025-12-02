@@ -425,51 +425,184 @@ class TikTokService:
     def update_content_details(item_details: List[Dict], db: Session) -> int:
         """Update content with detailed info (including bookmarks)"""
         updated_count = 0
-        
+
         for detail in item_details:
             try:
-                item_id = detail.get('item_id')
+                item_id = detail.get("item_id")
                 if not item_id:
                     continue
-                
-                content = db.query(Content).filter(
-                    Content.platform == Platform.TIKTOK,
-                    Content.platform_post_id == item_id
-                ).first()
-                
-                if not content:
-                    continue
-                
-                # Update with detailed info
-                content.views = detail.get('video_views', content.views)
-                content.likes = detail.get('likes', content.likes)
-                content.comments = detail.get('comments', content.comments)
-                content.shares = detail.get('shares', content.shares)
-                content.saves = detail.get('bookmarks', 0)  # bookmarks = saves
-                
-                # Recalculate PFM with bookmarks
-                content.pfm_score = TikTokService.calculate_pfm_score(
-                    content.views,
-                    content.likes,
-                    content.comments,
-                    content.shares,
-                    content.saves
+
+                # หา content เดิม ถ้าไม่มีจะสร้างใหม่แบบ stub จาก item detail
+                content = (
+                    db.query(Content)
+                    .filter(
+                        Content.platform == Platform.TIKTOK,
+                        Content.platform_post_id == item_id,
+                    )
+                    .first()
                 )
-                
-                # Update creator info
-                if detail.get('author'):
-                    content.creator_name = detail['author']
-                    content.creator_id = detail['author']
-                    content.content_source = TikTokService.determine_content_source(detail['author'])
-                
+
+                # Parse author / channel
+                author = detail.get("author")
+                content_source = (
+                    TikTokService.determine_content_source(author)
+                    if author
+                    else None
+                )
+
+                # Parse create_time
+                create_time = None
+                if detail.get("create_time"):
+                    try:
+                        create_time = datetime.fromtimestamp(
+                            int(detail["create_time"])
+                        )
+                    except Exception:
+                        pass
+
+                # Metrics
+                video_views = detail.get("video_views", 0)
+                likes = detail.get("likes", 0)
+                comments = detail.get("comments", 0)
+                shares = detail.get("shares", 0)
+                bookmarks = detail.get("bookmarks", 0)
+
+                pfm_score = TikTokService.calculate_pfm_score(
+                    video_views, likes, comments, shares, bookmarks
+                )
+
+                if not content:
+                    # สร้าง Content ใหม่จาก item detail
+                    content = Content(
+                        platform=Platform.TIKTOK,
+                        platform_post_id=item_id,
+                        url=detail.get("url"),
+                        caption=detail.get("caption", ""),
+                        thumbnail_url=detail.get("thumbnail_url", ""),
+                        platform_created_at=create_time,
+                        content_source=content_source,
+                        status=ContentStatus.READY,
+                        video_duration=Decimal(
+                            str(detail.get("video_duration", 0))
+                        ),
+                        views=video_views,
+                        likes=likes,
+                        comments=comments,
+                        shares=shares,
+                        reach=detail.get("reach", 0),
+                        total_watch_time=Decimal(
+                            str(detail.get("total_time_watched", 0))
+                        ),
+                        avg_watch_time=Decimal(
+                            str(detail.get("average_time_watched", 0))
+                        ),
+                        completion_rate=pfm_score,  # เก็บ pfm ไว้ชั่วคราวใน field นี้ถ้าไม่มีข้อมูลอื่น
+                        pfm_score=pfm_score,
+                        creator_name=author,
+                        creator_id=author,
+                    )
+                    db.add(content)
+                else:
+                    # Update with detailed info
+                    content.views = video_views or content.views
+                    content.likes = likes or content.likes
+                    content.comments = comments or content.comments
+                    content.shares = shares or content.shares
+                    content.saves = bookmarks or content.saves
+
+                    # Recalculate PFM with bookmarks
+                    content.pfm_score = pfm_score
+
+                    # Update creator info
+                    if author:
+                        content.creator_name = author
+                        content.creator_id = author
+                        content.content_source = content_source
+
+                    # Update basic info ถ้ายังว่าง
+                    if not content.url and detail.get("url"):
+                        content.url = detail["url"]
+                    if not content.caption and detail.get("caption"):
+                        content.caption = detail["caption"]
+                    if not content.thumbnail_url and detail.get("thumbnail_url"):
+                        content.thumbnail_url = detail["thumbnail_url"]
+                    if not content.platform_created_at and create_time:
+                        content.platform_created_at = create_time
+
                 updated_count += 1
-                
+
             except Exception as e:
                 print(f"Error updating content {detail.get('item_id')}: {e}")
                 continue
-        
+
         db.commit()
         return updated_count
+
+    @classmethod
+    def ensure_contents_for_item_ids(
+        cls, item_ids: List[str], db: Session | None = None
+    ) -> Dict:
+        """
+        ให้แน่ใจว่า TikTok content สำหรับ item_ids ที่ระบุ "มีอยู่" ในตาราง contents แล้ว
+        - ดึง item details จาก ITEM_DETAIL_API
+        - ใช้ update_content_details เพื่อสร้าง/อัปเดต Content
+        """
+        # ทำให้เป็น unique + ตัดช่องว่าง
+        cleaned: List[str] = []
+        seen = set()
+        for raw in item_ids or []:
+            if not raw:
+                continue
+            s = str(raw).strip()
+            if not s or s in seen:
+                continue
+            seen.add(s)
+            cleaned.append(s)
+
+        if not cleaned:
+            return {"requested": 0, "created_or_updated": 0, "failed": 0}
+
+        own_session = False
+        if db is None:
+            db = SessionLocal()
+            own_session = True
+
+        try:
+            details, failed_ids = cls.get_item_details_concurrently(cleaned, max_workers=10)
+            before_count = (
+                db.query(Content)
+                .filter(
+                    Content.platform == Platform.TIKTOK,
+                    Content.platform_post_id.in_(cleaned),
+                )
+                .count()
+            )
+
+            updated = 0
+            if details:
+                updated = cls.update_content_details(details, db)
+
+            after_count = (
+                db.query(Content)
+                .filter(
+                    Content.platform == Platform.TIKTOK,
+                    Content.platform_post_id.in_(cleaned),
+                )
+                .count()
+            )
+
+            created_or_updated = max(after_count - before_count, 0) or updated
+            failed = len(failed_ids)
+
+            return {
+                "requested": len(cleaned),
+                "created_or_updated": created_or_updated,
+                "failed": failed,
+            }
+
+        finally:
+            if own_session:
+                db.close()
     
     @classmethod
     def fetch_and_sync_all_videos(cls, access_token: str, business_id: str, 

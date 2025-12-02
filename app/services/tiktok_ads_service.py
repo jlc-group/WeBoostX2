@@ -195,9 +195,7 @@ class TikTokAdsService:
 
         # เตรียม content cache จาก item_id ก่อน (ล่วงหน้า)
         item_ids = {
-            a.get("tiktok_item_id")
-            for a in ads_raw
-            if a.get("tiktok_item_id")
+            a.get("tiktok_item_id") for a in ads_raw if a.get("tiktok_item_id")
         }
 
         contents: List[Content] = []
@@ -214,6 +212,27 @@ class TikTokAdsService:
         content_by_item: Dict[str, Content] = {
             c.platform_post_id: c for c in contents if c.platform_post_id
         }
+
+        # Fallback: ถ้ามี item_id จาก ads ที่ยังไม่มีใน DB ให้สร้าง/อัปเดตจาก item detail
+        missing_item_ids = [i for i in item_ids if i and i not in content_by_item]
+        if missing_item_ids:
+            print(
+                f"[TikTokAdsService] Ensuring contents for "
+                f"{len(missing_item_ids)} TikTok item_ids not in DB before mapping ads..."
+            )
+            TikTokService.ensure_contents_for_item_ids(list(missing_item_ids), db=db)
+            # โหลด content ใหม่สำหรับ item_ids ที่เพิ่งสร้าง
+            new_contents = (
+                db.query(Content)
+                .filter(
+                    Content.platform == PlatformEnum.TIKTOK,
+                    Content.platform_post_id.in_(list(missing_item_ids)),
+                )
+                .all()
+            )
+            for c in new_contents:
+                if c.platform_post_id:
+                    content_by_item[c.platform_post_id] = c
 
         ads_created_or_updated = 0
 
