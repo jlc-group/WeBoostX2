@@ -1,0 +1,320 @@
+{% extends "layouts/app.html" %}
+
+{% block page_title %}จัดการสินค้า{% endblock %}
+{% block page_subtitle %}Master Data - รายการสินค้า (SKU){% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="productsPage()">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <!-- Search -->
+            <div class="relative">
+                <input type="text" x-model="search" @input.debounce.300ms="loadProducts()"
+                       placeholder="ค้นหารหัส/ชื่อสินค้า..."
+                       class="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white w-64 text-sm">
+                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            
+            <!-- Active Filter -->
+            <select x-model="activeFilter" @change="loadProducts()"
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white text-sm">
+                <option value="">ทั้งหมด</option>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+            </select>
+        </div>
+        
+        <button @click="openAddModal()" 
+                class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors text-sm font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            <span>เพิ่มสินค้า</span>
+        </button>
+    </div>
+    
+    <!-- Stats -->
+    <div class="grid grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p class="text-2xl font-bold text-gray-800" x-text="stats.total"></p>
+            <p class="text-xs text-gray-500">สินค้าทั้งหมด</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p class="text-2xl font-bold text-green-600" x-text="stats.active"></p>
+            <p class="text-xs text-gray-500">Active</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <p class="text-2xl font-bold text-blue-600" x-text="stats.canAllocate"></p>
+            <p class="text-xs text-gray-500">จัดสรรงบได้</p>
+        </div>
+    </div>
+    
+    <!-- Table -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+        <div x-show="loading" class="p-12 text-center">
+            <svg class="animate-spin w-8 h-8 text-gray-400 mx-auto" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+        
+        <table x-show="!loading" class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">รหัสสินค้า</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ชื่อสินค้า</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">หมวดหมู่</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">ราคา</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">จัดสรรงบ</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">สถานะ</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                <template x-for="product in products" :key="product.id">
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 font-mono font-bold text-blue-600" x-text="product.code"></td>
+                        <td class="px-6 py-4">
+                            <p class="font-medium text-gray-800" x-text="product.name"></p>
+                            <p class="text-xs text-gray-400 line-clamp-1" x-text="product.description || ''"></p>
+                        </td>
+                        <td class="px-6 py-4 text-gray-600" x-text="product.category || '-'"></td>
+                        <td class="px-6 py-4 text-right text-gray-600">
+                            <span x-show="product.price" x-text="'฿' + formatNumber(product.price)"></span>
+                            <span x-show="!product.price" class="text-gray-400">-</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                  :class="product.can_allocate_budget ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'"
+                                  x-text="product.can_allocate_budget ? 'ได้' : 'ไม่ได้'"></span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                  :class="product.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'"
+                                  x-text="product.is_active ? 'Active' : 'Inactive'"></span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button @click="editProduct(product)" class="p-2 hover:bg-gray-100 rounded-lg" title="แก้ไข">
+                                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                </button>
+                                <button @click="deleteProduct(product)" class="p-2 hover:bg-red-100 rounded-lg" title="ลบ">
+                                    <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </template>
+                
+                <tr x-show="!loading && products.length === 0">
+                    <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                        ไม่พบข้อมูลสินค้า
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Add/Edit Modal -->
+    <div x-show="showModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         @click.self="showModal = false">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-gray-200">
+                <h3 class="text-lg font-bold text-gray-800" x-text="isEditing ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'"></h3>
+            </div>
+            
+            <form @submit.prevent="saveProduct()" class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">รหัสสินค้า (SKU) *</label>
+                        <input type="text" x-model="form.code" required :disabled="isEditing"
+                               :class="isEditing ? 'bg-gray-100' : ''"
+                               class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">หมวดหมู่</label>
+                        <input type="text" x-model="form.category"
+                               class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อสินค้า *</label>
+                    <input type="text" x-model="form.name" required
+                           class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">รายละเอียด</label>
+                    <textarea x-model="form.description" rows="2"
+                              class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm"></textarea>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ราคา (บาท)</label>
+                        <input type="number" x-model="form.price" step="0.01" min="0"
+                               class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">TikTok Product ID</label>
+                        <input type="text" x-model="form.tiktok_product_id"
+                               class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm font-mono">
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-6">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" x-model="form.is_active" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                        <span class="text-sm text-gray-700">Active</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" x-model="form.can_allocate_budget" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
+                        <span class="text-sm text-gray-700">อนุญาตจัดสรรงบประมาณ</span>
+                    </label>
+                </div>
+                
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                    <button type="button" @click="showModal = false"
+                            class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors text-sm font-medium">
+                        ยกเลิก
+                    </button>
+                    <button type="submit" :disabled="saving"
+                            class="px-6 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors text-sm font-medium disabled:opacity-50">
+                        <span x-show="!saving" x-text="isEditing ? 'บันทึก' : 'เพิ่ม'"></span>
+                        <span x-show="saving">กำลังบันทึก...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function productsPage() {
+    return {
+        products: [],
+        loading: true,
+        search: '',
+        activeFilter: '',
+        showModal: false,
+        isEditing: false,
+        saving: false,
+        editingId: null,
+        stats: { total: 0, active: 0, canAllocate: 0 },
+        form: {
+            code: '',
+            name: '',
+            description: '',
+            category: '',
+            price: null,
+            is_active: true,
+            can_allocate_budget: true,
+            tiktok_product_id: ''
+        },
+        
+        init() {
+            this.loadProducts();
+        },
+        
+        async loadProducts() {
+            this.loading = true;
+            try {
+                let url = '/api/v1/products?limit=500';
+                if (this.search) url += `&search=${encodeURIComponent(this.search)}`;
+                if (this.activeFilter) url += `&is_active=${this.activeFilter}`;
+                
+                const res = await fetch(url);
+                this.products = await res.json();
+                
+                // Calculate stats
+                this.stats.total = this.products.length;
+                this.stats.active = this.products.filter(p => p.is_active).length;
+                this.stats.canAllocate = this.products.filter(p => p.can_allocate_budget).length;
+            } catch (e) {
+                console.error('Error loading products:', e);
+            }
+            this.loading = false;
+        },
+        
+        openAddModal() {
+            this.isEditing = false;
+            this.editingId = null;
+            this.form = {
+                code: '',
+                name: '',
+                description: '',
+                category: '',
+                price: null,
+                is_active: true,
+                can_allocate_budget: true,
+                tiktok_product_id: ''
+            };
+            this.showModal = true;
+        },
+        
+        editProduct(product) {
+            this.isEditing = true;
+            this.editingId = product.id;
+            this.form = { ...product };
+            this.showModal = true;
+        },
+        
+        async saveProduct() {
+            this.saving = true;
+            try {
+                const url = this.isEditing ? `/api/v1/products/${this.editingId}` : '/api/v1/products';
+                const method = this.isEditing ? 'PUT' : 'POST';
+                
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.form)
+                });
+                
+                if (res.ok) {
+                    this.showModal = false;
+                    this.loadProducts();
+                } else {
+                    const err = await res.json();
+                    alert(err.detail || 'เกิดข้อผิดพลาด');
+                }
+            } catch (e) {
+                console.error('Error saving product:', e);
+                alert('เกิดข้อผิดพลาด');
+            }
+            this.saving = false;
+        },
+        
+        async deleteProduct(product) {
+            if (!confirm(`ลบสินค้า "${product.code}" ?`)) return;
+            
+            try {
+                const res = await fetch(`/api/v1/products/${product.id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    this.loadProducts();
+                } else {
+                    alert('เกิดข้อผิดพลาดในการลบ');
+                }
+            } catch (e) {
+                console.error('Error deleting product:', e);
+            }
+        },
+        
+        formatNumber(num) {
+            if (!num) return '0';
+            return new Intl.NumberFormat('th-TH').format(num);
+        }
+    };
+}
+</script>
+{% endblock %}
+

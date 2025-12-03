@@ -362,11 +362,12 @@
                                                   x-text="getContentSourceLabel(content.content_source)"></button>
                                             <!-- Boost Badge -->
                                             <span x-show="content.boost_factor > 1" class="inline-flex px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-medium">⚡x<span x-text="content.boost_factor"></span></span>
-                                            <!-- Expire Date Badge - Clickable to filter expiring soon -->
+                                            <!-- Expire Date Badge - Only filter if expiring soon (red) -->
                                             <button x-show="content.expire_date" 
-                                                  @click="filterByExpiring()"
-                                                  class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all" 
-                                                  :class="isExpiringSoon(content.expire_date) ? 'bg-red-100 text-red-700 hover:ring-red-300' : 'bg-gray-100 text-gray-600 hover:ring-gray-300'">📅<span x-text="formatExpireDate(content.expire_date)"></span></button>
+                                                  @click="isExpiringSoon(content.expire_date) ? filterByExpiring() : null"
+                                                  class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-mono transition-all" 
+                                                  :class="isExpiringSoon(content.expire_date) ? 'bg-red-100 text-red-700 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-red-300' : 'bg-green-100 text-green-700'"
+                                                  x-text="formatExpireDate(content.expire_date)"></button>
                                         </div>
                                         <div class="flex items-center gap-2 mt-1 text-[10px] text-gray-500">
                                             <span>⏱️ <span x-text="formatDuration(content.video_duration)"></span></span>
@@ -1752,7 +1753,14 @@ function tiktokContentsPage() {
         formatExpireDate(dateStr) {
             if (!dateStr) return '';
             const date = new Date(dateStr);
-            return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            date.setHours(0, 0, 0, 0);
+            const diffTime = date - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const dateFormatted = date.toISOString().split('T')[0]; // YYYY-MM-DD
+            const sign = diffDays >= 0 ? '+' : '';
+            return `EXP(${sign}${diffDays}):${dateFormatted}`;
         },
         
         formatNumber(num) {
@@ -1770,13 +1778,15 @@ function tiktokContentsPage() {
         formatDate(dateStr) {
             if (!dateStr) return '-';
             const date = new Date(dateStr);
-            return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+            // Format: YYYY-MM-DD
+            return date.toISOString().split('T')[0];
         },
         
         formatTime(dateStr) {
             if (!dateStr) return '';
             const date = new Date(dateStr);
-            return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+            // Format: HH:MM
+            return date.toTimeString().slice(0, 5);
         },
         
         formatDuration(seconds) {

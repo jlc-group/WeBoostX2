@@ -45,6 +45,11 @@ from app.models.system import AppSetting
 # Employee/Influencer models
 from app.models.employee import Employee, Influencer, ContentCreatorAssignment
 
+# Targeting Cache models
+from app.models.targeting_cache import (
+    TikTokInterestCategory, TikTokActionCategory, TikTokRegion
+)
+
 
 __all__ = [
     # Base
@@ -87,4 +92,7 @@ __all__ = [
     
     # Employee/Influencer
     "Employee", "Influencer", "ContentCreatorAssignment",
+    
+    # Targeting Cache
+    "TikTokInterestCategory", "TikTokActionCategory", "TikTokRegion",
 ]

@@ -3,7 +3,7 @@ API v1 routes
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, health, pages, contents, settings, tasks, employees
+from app.api.v1 import auth, health, pages, contents, settings, tasks, employees, products, targeting
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -15,6 +15,9 @@ api_router.include_router(settings.router)
 api_router.include_router(tasks.router)
 api_router.include_router(employees.router)
 api_router.include_router(employees.influencer_router)
+api_router.include_router(products.router)
+api_router.include_router(products.groups_router)
+api_router.include_router(targeting.router)
 
 # Page routes (no prefix)
 page_router = pages.router

@@ -109,6 +109,15 @@ def start_scheduler():
         replace_existing=True,
     )
     
+    # Sync TikTok Targeting Data (interests, actions, regions) - daily at 3 AM
+    scheduler.add_job(
+        func=sync_targeting_cache_job,
+        trigger=CronTrigger(hour=3, minute=0),
+        id="sync_targeting_cache",
+        name="Sync TikTok targeting options to local cache",
+        replace_existing=True,
+    )
+    
     # ============================================
     # Weekly Jobs
     # ============================================
@@ -231,6 +240,17 @@ def daily_budget_job():
         print(f"[{datetime.now()}] Daily budget job completed")
     except Exception as e:
         print(f"[{datetime.now()}] Daily budget job failed: {e}")
+
+
+def sync_targeting_cache_job():
+    """Sync TikTok targeting options to local cache"""
+    print(f"[{datetime.now()}] Running targeting cache sync job...")
+    try:
+        from app.tasks.sync_targeting import sync_all_tiktok_targeting
+        result = sync_all_tiktok_targeting(language="th")
+        print(f"[{datetime.now()}] Targeting cache sync completed: {result}")
+    except Exception as e:
+        print(f"[{datetime.now()}] Targeting cache sync failed: {e}")
 
 
 def sync_offline_sales_job():

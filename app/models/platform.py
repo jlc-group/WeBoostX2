@@ -4,7 +4,7 @@ Platform and Ad Account models
 from sqlalchemy import Column, Integer, String, Boolean, Enum, Text, Date, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 
-from app.models.base import BaseModel
+from app.models.base import BaseModel, SoftDeleteMixin
 from app.models.enums import Platform, AdAccountStatus
 
 
@@ -45,12 +45,16 @@ class AdAccount(BaseModel):
         )
 
 
-class TargetingTemplate(BaseModel):
+class TargetingTemplate(BaseModel, SoftDeleteMixin):
     """Reusable targeting templates"""
     
     __tablename__ = "targeting_templates"
     
     id = Column(Integer, primary_key=True, index=True)
+    
+    # Targeting code (unique identifier like "MF_SUN_MASS_18_54")
+    # Used in ad naming pattern: [ProductGroup]_ACE_<targeting_code>_SALE#01
+    targeting_code = Column(String(100), unique=True, nullable=False, index=True)
     
     # Basic info
     name = Column(String(255), nullable=False)
@@ -65,6 +69,7 @@ class TargetingTemplate(BaseModel):
     behaviors = Column(JSON, nullable=True)  # Action/behavior categories
     custom_audiences = Column(JSON, nullable=True)
     excluded_audiences = Column(JSON, nullable=True)
+    hashtags = Column(JSON, nullable=True)  # Hashtag targeting (TikTok)
     
     # Device targeting
     device_types = Column(JSON, nullable=True)

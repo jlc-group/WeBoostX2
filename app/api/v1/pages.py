@@ -396,6 +396,174 @@ async def settings_targeting_page(request: Request, db: Session = Depends(get_db
     )
 
 
+@router.get("/settings/products", response_class=HTMLResponse)
+async def settings_products_page(request: Request, db: Session = Depends(get_db)):
+    """Products management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/products.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "settings_products",
+        },
+    )
+
+
+@router.get("/settings/product-groups", response_class=HTMLResponse)
+async def settings_product_groups_page(request: Request, db: Session = Depends(get_db)):
+    """Product Groups management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/product_groups.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "settings_product_groups",
+        },
+    )
+
+
+# ============================================
+# Master Data Routes (Marketing)
+# ============================================
+
+@router.get("/master/products", response_class=HTMLResponse)
+async def master_products_page(request: Request, db: Session = Depends(get_db)):
+    """Products management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/products.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "master_products",
+        },
+    )
+
+
+@router.get("/master/product-groups", response_class=HTMLResponse)
+async def master_product_groups_page(request: Request, db: Session = Depends(get_db)):
+    """Product Groups management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/product_groups.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "master_product_groups",
+        },
+    )
+
+
+@router.get("/master/targeting", response_class=HTMLResponse)
+async def master_targeting_page(request: Request, db: Session = Depends(get_db)):
+    """Targeting Templates management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/targeting.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "master_targeting",
+        },
+    )
+
+
+# ============================================
+# Team Routes (Marketing)
+# ============================================
+
+@router.get("/team/employees", response_class=HTMLResponse)
+async def team_employees_page(request: Request, db: Session = Depends(get_db)):
+    """Employees management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/employees.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "team_employees",
+        },
+    )
+
+
+@router.get("/team/influencers", response_class=HTMLResponse)
+async def team_influencers_page(request: Request, db: Session = Depends(get_db)):
+    """Influencers management page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/influencers.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "team_influencers",
+        },
+    )
+
+
+# ============================================
+# Admin Routes
+# ============================================
+
+@router.get("/admin/content-types", response_class=HTMLResponse)
+async def admin_content_types_page(request: Request, db: Session = Depends(get_db)):
+    """Content Types management page (Admin only)"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type("obj", (object,), {"value": "admin"})()
+
+    return templates.TemplateResponse(
+        "settings/content_types.html",
+        {
+            "request": request,
+            "current_user": MockUser(),
+            "active_page": "admin_content_types",
+        },
+    )
+
+
+# ============================================
+# Legacy Redirects (Backward Compatibility)
+# ============================================
+
 @router.get("/platforms/tiktok", response_class=HTMLResponse)
 async def tiktok_page(request: Request):
     """TikTok platform page - redirect to contents"""
