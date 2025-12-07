@@ -17,6 +17,7 @@ from app.core.database import SessionLocal
 from app.models import Content, TaskLog, TaskStatus
 from app.models.system import AppSetting
 from app.models.enums import Platform, ContentStatus, ContentType, ContentSource
+from app.services.thumbnail_service import download_thumbnail_async
 
 
 class TikTokService:
@@ -368,7 +369,8 @@ class TikTokService:
                     # Update existing
                     content.url = share_url
                     content.caption = video.get('caption', '')
-                    content.thumbnail_url = video.get('thumbnail_url', '')
+                    thumbnail_url = video.get('thumbnail_url', '')
+                    content.thumbnail_url = thumbnail_url
                     content.video_duration = Decimal(str(video.get('video_duration', 0)))
                     content.views = video.get('video_views', 0)
                     content.likes = video.get('likes', 0)
@@ -383,14 +385,19 @@ class TikTokService:
                         'impression_sources': video.get('impression_sources', [])
                     }
                     content.creator_name = channel_acc_id
+                    
+                    # Download thumbnail in background (before URL expires)
+                    if thumbnail_url:
+                        download_thumbnail_async(thumbnail_url, 'tiktok', item_id)
                 else:
                     # Create new
+                    thumbnail_url = video.get('thumbnail_url', '')
                     content = Content(
                         platform=Platform.TIKTOK,
                         platform_post_id=item_id,
                         url=share_url,
                         caption=video.get('caption', ''),
-                        thumbnail_url=video.get('thumbnail_url', ''),
+                        thumbnail_url=thumbnail_url,
                         platform_created_at=create_time,
                         content_source=content_source,
                         status=ContentStatus.READY,
@@ -411,6 +418,10 @@ class TikTokService:
                         creator_id=channel_acc_id,
                     )
                     db.add(content)
+                    
+                    # Download thumbnail in background (before URL expires)
+                    if thumbnail_url:
+                        download_thumbnail_async(thumbnail_url, 'tiktok', item_id)
                 
                 synced_count += 1
                 

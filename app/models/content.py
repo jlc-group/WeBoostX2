@@ -129,6 +129,10 @@ class Content(BaseModel, SoftDeleteMixin):
     # ============================================
     # Targeting (for ad creation)
     # ============================================
+    # Multi-select targeting templates that this content is suitable for
+    preferred_targeting_ids = Column(JSON, nullable=True)  # [1, 3, 5] - List of TargetingTemplate IDs
+    
+    # Legacy single targeting (still supported)
     targeting_template_id = Column(Integer, ForeignKey("targeting_templates.id"), nullable=True)
     targeting_override = Column(JSON, nullable=True)  # Override targeting settings
     

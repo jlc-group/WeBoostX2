@@ -26,14 +26,38 @@
                 <option value="false">Inactive</option>
             </select>
         </div>
-        
-        <button @click="openAddModal()" 
-                class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors text-sm font-medium">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-            </svg>
-            <span>เพิ่มกลุ่มสินค้า</span>
-        </button>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Bulk actions -->
+            <div class="flex flex-wrap items-center gap-2" x-show="selectedIds.length > 0">
+                <span class="text-xs text-gray-500 mr-1">
+                    เลือกแล้ว <span class="font-semibold" x-text="selectedIds.length"></span> กลุ่ม
+                </span>
+                <button type="button"
+                        @click="bulkUpdateStatus(true)"
+                        class="px-3 py-1.5 text-xs rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors">
+                    ตั้งเป็น Active
+                </button>
+                <button type="button"
+                        @click="bulkUpdateStatus(false)"
+                        class="px-3 py-1.5 text-xs rounded-full bg-gray-700 text-white hover:bg-gray-800 transition-colors">
+                    ตั้งเป็น Inactive
+                </button>
+                <button type="button"
+                        @click="bulkDelete()"
+                        class="px-3 py-1.5 text-xs rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors">
+                    ลบที่เลือก
+                </button>
+            </div>
+
+            <button @click="openAddModal()" 
+                    class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                <span>เพิ่มกลุ่มสินค้า</span>
+            </button>
+        </div>
     </div>
     
     <!-- Stats -->
@@ -48,83 +72,338 @@
         </div>
     </div>
     
-    <!-- Cards Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <template x-for="group in groups" :key="group.id">
-            <div class="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition-shadow">
-                <div class="p-5">
-                    <div class="flex items-start justify-between mb-3">
-                        <div>
-                            <h3 class="font-bold text-gray-800" x-text="group.name"></h3>
-                            <p class="text-xs text-gray-500">
-                                <span x-text="group.product_codes?.length || 0"></span> สินค้า
+    <!-- Table -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+        <div x-show="loading" class="p-12 text-center">
+            <svg class="animate-spin w-8 h-8 text-gray-400 mx-auto" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+        
+        <table x-show="!loading" class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                        <input type="checkbox"
+                               class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                               @change="toggleSelectAll($event)"
+                               :checked="isAllSelected">
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ชื่อกลุ่มสินค้า</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">สินค้าในกลุ่ม</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">การจัดสรร Content Style</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">สถานะ</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                <template x-for="group in groups" :key="group.id">
+                    <tr class="hover:bg-gray-50"
+                        :class="selectedIds.includes(group.id) ? 'bg-blue-50/40' : ''">
+                        <td class="px-4 py-4">
+                            <input type="checkbox"
+                                   class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                   :value="group.id"
+                                   :checked="selectedIds.includes(group.id)"
+                                   @change="toggleSelect(group.id, $event)">
+                        </td>
+                        <td class="px-6 py-4">
+                            <p class="font-medium text-gray-800" x-text="group.name"></p>
+                            <p class="text-xs text-gray-400">
+                                <span x-text="(group.product_codes?.length || 0) + ' SKU'"></span>
                             </p>
-                        </div>
-                        <span class="px-2 py-1 rounded-full text-xs font-medium"
-                              :class="group.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'"
-                              x-text="group.is_active ? 'Active' : 'Inactive'"></span>
-                    </div>
-                    
-                    <!-- Product Codes -->
-                    <div class="flex flex-wrap gap-1.5 mb-4" x-show="group.product_codes && group.product_codes.length > 0">
-                        <template x-for="code in group.product_codes?.slice(0, 8)" :key="code">
-                            <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-mono" x-text="code"></span>
-                        </template>
-                        <span x-show="group.product_codes?.length > 8" class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">
-                            +<span x-text="group.product_codes.length - 8"></span> อื่นๆ
-                        </span>
-                    </div>
-                    
-                    <!-- Content Style Weights -->
-                    <div x-show="group.default_content_style_weights" class="mb-4">
-                        <p class="text-xs text-gray-500 mb-1">การจัดสรร Content Style:</p>
-                        <div class="flex gap-2">
-                            <template x-for="(weight, style) in group.default_content_style_weights" :key="style">
-                                <span class="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs">
-                                    <span x-text="style"></span>: <span x-text="weight + '%'"></span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-wrap gap-1" x-show="group.product_codes && group.product_codes.length">
+                                <template x-for="code in group.product_codes.slice(0, 6)" :key="code">
+                                    <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-mono" x-text="code"></span>
+                                </template>
+                                <span x-show="group.product_codes.length > 6"
+                                      class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs">
+                                    +<span x-text="group.product_codes.length - 6"></span> อื่นๆ
                                 </span>
-                            </template>
-                        </div>
+                            </div>
+                            <span x-show="!group.product_codes || group.product_codes.length === 0"
+                                  class="text-xs text-gray-400">-</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div x-show="group.default_content_style_weights" class="flex flex-wrap gap-1">
+                                <template x-for="(weight, style) in group.default_content_style_weights" :key="style">
+                                    <span class="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs">
+                                        <span x-text="style"></span>: <span x-text="weight + '%'"></span>
+                                    </span>
+                                </template>
+                            </div>
+                            <span x-show="!group.default_content_style_weights"
+                                  class="text-xs text-gray-400">-</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                  :class="group.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'"
+                                  x-text="group.is_active ? 'Active' : 'Inactive'"></span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button @click="openAutoCreateModal(group)" 
+                                        class="px-2 py-1 text-xs bg-pink-500 hover:bg-pink-600 text-white rounded-lg transition-colors" 
+                                        title="Auto Create ABX Adgroups"
+                                        x-show="group.product_codes && group.product_codes.length > 0">
+                                    <svg class="w-3 h-3 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                    </svg>
+                                    ABX
+                                </button>
+                                <button @click="editGroup(group)" class="p-2 hover:bg-gray-100 rounded-lg" title="แก้ไข">
+                                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                </button>
+                                <button @click="deleteGroup(group)" class="p-2 hover:bg-red-100 rounded-lg" title="ลบ">
+                                    <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </template>
+
+                <tr x-show="!loading && groups.length === 0">
+                    <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                        ไม่พบกลุ่มสินค้า
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Auto Create ABX Adgroups Modal -->
+    <div x-show="showAutoCreateModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         @click.self="showAutoCreateModal = false">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-pink-500 to-rose-500 px-6 py-4 flex-shrink-0">
+                <div class="flex items-center justify-between">
+                    <div class="text-white">
+                        <h3 class="text-lg font-bold flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                            Auto Create ABX Adgroups
+                        </h3>
+                        <p class="text-pink-200 text-sm" x-text="'สำหรับ: ' + (selectedGroupForAbx?.name || '')"></p>
                     </div>
-                    
-                    <!-- Actions -->
-                    <div class="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
-                        <button @click="editGroup(group)" class="p-2 hover:bg-gray-100 rounded-lg" title="แก้ไข">
-                            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                            </svg>
+                    <button class="text-white/80 hover:text-white text-xl" @click="showAutoCreateModal = false">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Content -->
+            <div class="p-6 space-y-5 overflow-y-auto flex-1">
+                <!-- Product Codes Preview -->
+                <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                        สินค้าในกลุ่ม
+                    </label>
+                    <div class="flex flex-wrap gap-1">
+                        <template x-for="code in (selectedGroupForAbx?.product_codes || [])" :key="code">
+                            <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-mono" x-text="code"></span>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- Step 1: Objective -->
+                <div class="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
+                    <label class="block text-xs font-semibold text-purple-700 uppercase tracking-wide mb-3">
+                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-600 text-white text-xs mr-1">1</span>
+                        เลือก Objective
+                    </label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button type="button" 
+                                class="px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all"
+                                :class="abxForm.objective_code === 'VV' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-300 hover:border-purple-400'"
+                                @click="abxForm.objective_code = 'VV'">
+                            🎬 VV
                         </button>
-                        <button @click="deleteGroup(group)" class="p-2 hover:bg-red-100 rounded-lg" title="ลบ">
-                            <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                            </svg>
+                        <button type="button" 
+                                class="px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all"
+                                :class="abxForm.objective_code === 'RCH' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'"
+                                @click="abxForm.objective_code = 'RCH'">
+                            📢 RCH
                         </button>
+                        <button type="button" 
+                                class="px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all"
+                                :class="abxForm.objective_code === 'TRF' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 border-gray-300 hover:border-green-400'"
+                                @click="abxForm.objective_code = 'TRF'">
+                            🔗 TRF
+                        </button>
+                        <button type="button" 
+                                class="px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all"
+                                :class="abxForm.objective_code === 'CVN' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-gray-700 border-gray-300 hover:border-amber-400'"
+                                @click="abxForm.objective_code = 'CVN'">
+                            🎯 CVN
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Step 2: Advertiser -->
+                <div class="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+                    <label class="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">
+                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs mr-1">2</span>
+                        เลือก Advertiser
+                    </label>
+                    <select x-model="abxForm.advertiser_id" @change="loadCampaignsForAbx()"
+                            class="w-full bg-white border-2 border-blue-300 rounded-lg px-4 py-2 text-sm font-medium focus:border-blue-500">
+                        <option value="">-- Select Advertiser --</option>
+                        <template x-for="adv in advertisers" :key="adv.external_account_id">
+                            <option :value="adv.external_account_id" x-text="adv.name"></option>
+                        </template>
+                    </select>
+                </div>
+                
+                <!-- Step 3: Campaign -->
+                <div class="bg-indigo-50 rounded-xl p-4 border-2 border-indigo-200" x-show="abxForm.advertiser_id">
+                    <label class="block text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
+                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs mr-1">3</span>
+                        เลือก Campaign
+                    </label>
+                    <div x-show="loadingCampaigns" class="text-center py-2">
+                        <svg class="animate-spin w-5 h-5 text-indigo-400 mx-auto" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                    <select x-show="!loadingCampaigns" x-model="abxForm.campaign_id"
+                            class="w-full bg-white border-2 border-indigo-300 rounded-lg px-4 py-2 text-sm font-medium focus:border-indigo-500">
+                        <option value="">-- Select Campaign --</option>
+                        <template x-for="camp in abxCampaigns" :key="camp.campaign_id">
+                            <option :value="camp.campaign_id" x-text="camp.campaign_name"></option>
+                        </template>
+                    </select>
+                </div>
+                
+                <!-- Step 4: Targeting -->
+                <div class="bg-teal-50 rounded-xl p-4 border-2 border-teal-200" x-show="abxForm.campaign_id">
+                    <label class="block text-xs font-semibold text-teal-700 uppercase tracking-wide mb-2">
+                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-600 text-white text-xs mr-1">4</span>
+                        เลือก Targeting Templates
+                    </label>
+                    <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                        <template x-for="tpl in targetingTemplates" :key="tpl.id">
+                            <label class="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border cursor-pointer hover:border-teal-400 text-sm"
+                                   :class="abxForm.targeting_ids.includes(tpl.id) ? 'border-teal-500 bg-teal-50' : 'border-gray-200'">
+                                <input type="checkbox" 
+                                       class="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                                       :value="tpl.id"
+                                       :checked="abxForm.targeting_ids.includes(tpl.id)"
+                                       @change="toggleTargetingId(tpl.id)">
+                                <span class="text-xs font-mono" x-text="tpl.name"></span>
+                            </label>
+                        </template>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">
+                        เลือกแล้ว: <span class="font-semibold" x-text="abxForm.targeting_ids.length"></span> targeting
+                    </p>
+                </div>
+                
+                <!-- Step 5: Content Styles -->
+                <div class="bg-amber-50 rounded-xl p-4 border-2 border-amber-200" x-show="abxForm.targeting_ids.length > 0">
+                    <label class="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">
+                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-600 text-white text-xs mr-1">5</span>
+                        เลือก Content Styles
+                    </label>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-for="style in ['SALE', 'ECOM', 'REVIEW', 'BRANDING']" :key="style">
+                            <label class="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border cursor-pointer hover:border-amber-400 text-sm"
+                                   :class="abxForm.content_styles.includes(style) ? 'border-amber-500 bg-amber-50' : 'border-gray-200'">
+                                <input type="checkbox" 
+                                       class="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                                       :value="style"
+                                       :checked="abxForm.content_styles.includes(style)"
+                                       @change="toggleContentStyle(style)">
+                                <span class="text-xs font-medium" x-text="style"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- Step 6: Count & Budget -->
+                <div class="grid grid-cols-2 gap-4" x-show="abxForm.content_styles.length > 0">
+                    <div class="bg-green-50 rounded-xl p-4 border-2 border-green-200">
+                        <label class="block text-xs font-semibold text-green-700 uppercase tracking-wide mb-2">
+                            จำนวน AdGroup ต่อ Style
+                        </label>
+                        <input type="number" x-model.number="abxForm.adgroups_per_style" min="1" max="20"
+                               class="w-full bg-white border-2 border-green-300 rounded-lg px-4 py-2 text-lg font-bold text-center focus:border-green-500">
+                    </div>
+                    <div class="bg-rose-50 rounded-xl p-4 border-2 border-rose-200">
+                        <label class="block text-xs font-semibold text-rose-700 uppercase tracking-wide mb-2">
+                            Budget ต่อ AdGroup (THB)
+                        </label>
+                        <input type="number" x-model.number="abxForm.budget_per_adgroup" min="1"
+                               class="w-full bg-white border-2 border-rose-300 rounded-lg px-4 py-2 text-lg font-bold text-center focus:border-rose-500">
+                    </div>
+                </div>
+                
+                <!-- Summary -->
+                <div class="bg-gray-100 rounded-xl p-4" x-show="canShowAbxSummary">
+                    <p class="text-sm font-semibold text-gray-700 mb-2">📊 สรุป</p>
+                    <div class="text-xs text-gray-600 space-y-1">
+                        <p>• Targeting: <span class="font-semibold" x-text="abxForm.targeting_ids.length"></span> templates</p>
+                        <p>• Styles: <span class="font-semibold" x-text="abxForm.content_styles.join(', ')"></span></p>
+                        <p>• AdGroups/Style: <span class="font-semibold" x-text="abxForm.adgroups_per_style"></span></p>
+                        <p class="text-base font-bold text-pink-600 mt-2">
+                            รวม: <span x-text="abxForm.targeting_ids.length * abxForm.content_styles.length * abxForm.adgroups_per_style"></span> AdGroups
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Preview -->
+                <div x-show="previewAdgroups.length > 0" class="bg-white rounded-xl border-2 border-gray-200 overflow-hidden">
+                    <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                        <span class="text-xs font-semibold text-gray-600 uppercase">Preview AdGroups</span>
+                        <span class="text-xs text-gray-500" x-text="previewAdgroups.length + ' adgroups'"></span>
+                    </div>
+                    <div class="max-h-48 overflow-y-auto p-2">
+                        <template x-for="(ag, idx) in previewAdgroups" :key="idx">
+                            <div class="px-3 py-1.5 text-xs font-mono rounded"
+                                 :class="ag.is_header ? 'bg-pink-100 text-pink-800 font-semibold mb-1' : 'text-gray-600 ml-4'"
+                                 x-text="ag.name">
+                            </div>
+                        </template>
                     </div>
                 </div>
             </div>
-        </template>
-        
-        <!-- Empty State -->
-        <div x-show="!loading && groups.length === 0" class="col-span-full">
-            <div class="bg-white rounded-2xl shadow-lg p-12 text-center">
-                <div class="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
-                    <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-                    </svg>
+            
+            <!-- Footer -->
+            <div class="bg-gray-50 px-6 py-4 flex justify-between gap-3 border-t flex-shrink-0">
+                <button type="button" @click="previewAbxAdgroups()" 
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                        :disabled="!canPreviewAbx || loadingPreview">
+                    <span x-show="!loadingPreview">👁 Preview</span>
+                    <span x-show="loadingPreview">กำลังโหลด...</span>
+                </button>
+                <div class="flex gap-3">
+                    <button type="button" @click="showAutoCreateModal = false"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50">
+                        ยกเลิก
+                    </button>
+                    <button type="button" @click="createAbxAdgroups()"
+                            class="px-6 py-2 text-sm font-semibold text-white bg-gradient-to-r from-pink-500 to-rose-500 rounded-lg hover:from-pink-600 hover:to-rose-600 shadow-lg disabled:opacity-50"
+                            :disabled="!canCreateAbx || creatingAbx">
+                        <span x-show="!creatingAbx">🚀 สร้าง AdGroups</span>
+                        <span x-show="creatingAbx">กำลังสร้าง...</span>
+                    </button>
                 </div>
-                <p class="text-gray-500">ไม่พบกลุ่มสินค้า</p>
             </div>
         </div>
     </div>
-    
-    <!-- Loading -->
-    <div x-show="loading" class="flex justify-center py-12">
-        <svg class="animate-spin w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-    </div>
-    
+
     <!-- Add/Edit Modal -->
     <div x-show="showModal" x-cloak
          class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
@@ -144,27 +423,72 @@
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">สินค้าในกลุ่ม *</label>
-                    <p class="text-xs text-gray-500 mb-2">ใส่รหัสสินค้า คั่นด้วยคอมม่า เช่น S1, S2, L7</p>
-                    <input type="text" x-model="productCodesText" required
-                           placeholder="S1, S2, L7"
-                           class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm font-mono">
+                    <p class="text-xs text-gray-500 mb-2">
+                        พิมพ์ค้นหาจากรหัสสินค้า (SKU) หรือชื่อสินค้า แล้วเลือกจากรายการด้านล่าง (คล้าย Select2)
+                    </p>
                     
-                    <!-- Available Products -->
-                    <div x-show="availableProducts.length > 0" class="mt-3">
-                        <p class="text-xs text-gray-500 mb-2">คลิกเพื่อเพิ่ม:</p>
-                        <div class="flex flex-wrap gap-1">
-                            <template x-for="prod in availableProducts" :key="prod.code">
-                                <button type="button" @click="addProductCode(prod.code)"
-                                        class="px-2 py-1 bg-gray-100 hover:bg-blue-100 text-gray-700 hover:text-blue-700 rounded text-xs font-mono transition-colors"
-                                        x-text="prod.code"></button>
+                    <!-- Selected products (tags) + search box -->
+                    <div class="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-sm">
+                        <!-- Selected tags -->
+                        <div class="flex flex-wrap gap-1 mb-1" x-show="selectedProducts.length > 0">
+                            <template x-for="prod in selectedProducts" :key="prod.code">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-800 rounded-full text-xs">
+                                    <span class="font-mono" x-text="prod.code"></span>
+                                    <span class="text-[11px] text-gray-600 max-w-[140px] truncate" x-text="prod.name || ''"></span>
+                                    <button type="button"
+                                            class="ml-0.5 text-gray-400 hover:text-red-500"
+                                            @click="removeSelectedProduct(prod.code)">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                </span>
+                            </template>
+                        </div>
+                        
+                        <!-- Search input -->
+                        <input type="text"
+                               x-model="productSearch"
+                               @keydown.enter.prevent="addProductFromSearch()"
+                               placeholder="พิมพ์รหัสสินค้า (เช่น S1) หรือชื่อสินค้า เพื่อค้นหาและเลือก"
+                               class="w-full border-0 focus:ring-0 focus:outline-none text-sm placeholder:text-gray-400">
+                    </div>
+                    
+                    <!-- Search dropdown -->
+                    <div class="relative mt-2" x-show="productSearch && filteredProducts().length > 0">
+                        <div class="absolute z-20 w-full max-h-56 overflow-auto bg-white border border-gray-200 rounded-xl shadow-lg">
+                            <template x-for="prod in filteredProducts()" :key="prod.code">
+                                <button type="button"
+                                        class="w-full px-3 py-1.5 flex items-center justify-between text-left hover:bg-blue-50 text-sm"
+                                        @click="toggleSelectProduct(prod)">
+                                    <div class="flex flex-col">
+                                        <span class="font-mono text-xs text-gray-900" x-text="prod.code"></span>
+                                        <span class="text-xs text-gray-600" x-text="prod.name"></span>
+                                    </div>
+                                    <span x-show="isSelected(prod.code)" class="text-xs text-blue-600 font-medium">
+                                        เลือกอยู่
+                                    </span>
+                                </button>
                             </template>
                         </div>
                     </div>
+                    
+                    <p class="text-xs text-gray-500 mt-1" x-show="selectedProducts.length === 0">
+                        ยังไม่ได้เลือกสินค้า
+                    </p>
                 </div>
                 
                 <!-- Content Style Weights -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">การจัดสรร Content Style (%)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        การจัดสรร Content Style (%) - ค่าเริ่มต้นของกลุ่มนี้
+                    </label>
+                    <p class="text-xs text-gray-500 mb-2">
+                        ใช้กำหนดสัดส่วนประเภทคอนเทนต์ของกลุ่มนี้เป็น “ค่าเริ่มต้น” เวลาไปจัดงบในแผนรายเดือน/รายวัน
+                        (สามารถปรับ/override ได้ตอนวางแผนงบ)
+                        เช่น กลุ่มรีวิวขายของอาจใช้ SALE 60 / REVIEW 30 / BRANDING 10
+                        หรือกลุ่มที่เป็น Branding ล้วน (เช่นรหัสสินค้า BR) อาจตั้ง BRANDING 100% ได้
+                    </p>
                     <div class="grid grid-cols-3 gap-3">
                         <div>
                             <label class="text-xs text-gray-500">SALE</label>
@@ -216,12 +540,15 @@ function productGroupsPage() {
         loading: true,
         search: '',
         activeFilter: '',
+        selectedIds: [],
         showModal: false,
         isEditing: false,
         saving: false,
         editingId: null,
         stats: { total: 0, active: 0 },
-        productCodesText: '',
+        productCodesText: '', // legacy string (ใช้ตอน parse/save)
+        selectedProducts: [], // [{ code, name }]
+        productSearch: '',
         styleWeights: { SALE: 60, REVIEW: 30, BRANDING: 10 },
         form: {
             name: '',
@@ -230,9 +557,46 @@ function productGroupsPage() {
             default_content_style_weights: null
         },
         
+        // Auto Create ABX Modal
+        showAutoCreateModal: false,
+        selectedGroupForAbx: null,
+        advertisers: [],
+        targetingTemplates: [],
+        abxCampaigns: [],
+        loadingCampaigns: false,
+        loadingPreview: false,
+        creatingAbx: false,
+        previewAdgroups: [],
+        abxForm: {
+            objective_code: 'VV',
+            advertiser_id: '',
+            campaign_id: '',
+            targeting_ids: [],
+            content_styles: ['SALE', 'ECOM'],
+            adgroups_per_style: 5,
+            budget_per_adgroup: 500
+        },
+        
+        get canShowAbxSummary() {
+            return this.abxForm.targeting_ids.length > 0 && this.abxForm.content_styles.length > 0;
+        },
+        
+        get canPreviewAbx() {
+            return this.abxForm.advertiser_id && 
+                   this.abxForm.campaign_id && 
+                   this.abxForm.targeting_ids.length > 0 && 
+                   this.abxForm.content_styles.length > 0;
+        },
+        
+        get canCreateAbx() {
+            return this.canPreviewAbx && this.previewAdgroups.length > 0;
+        },
+        
         init() {
             this.loadGroups();
             this.loadAvailableProducts();
+            this.loadAdvertisers();
+            this.loadTargetingTemplates();
         },
         
         async loadGroups() {
@@ -247,6 +611,9 @@ function productGroupsPage() {
                 
                 this.stats.total = this.groups.length;
                 this.stats.active = this.groups.filter(g => g.is_active).length;
+
+                // sync selection ให้ตรงกับรายการปัจจุบัน
+                this.selectedIds = this.selectedIds.filter(id => this.groups.some(g => g.id === id));
             } catch (e) {
                 console.error('Error loading groups:', e);
             }
@@ -255,8 +622,17 @@ function productGroupsPage() {
         
         async loadAvailableProducts() {
             try {
-                const res = await fetch('/api/v1/products?is_active=true&limit=500');
+                // ดึงสินค้าทั้งหมด (ไม่ filter active) เพื่อให้เลือกได้ครบทุก SKU จาก master data
+                const res = await fetch('/api/v1/products?limit=500');
                 this.availableProducts = await res.json();
+                
+                // ถ้ามี group ที่กำลังแก้ และ selected ยังไม่ถูก map ชื่อ ให้ลอง map ให้
+                if (this.isEditing && this.selectedProducts.length && !this.selectedProducts[0].name) {
+                    this.selectedProducts = this.selectedProducts.map(sp => {
+                        const found = this.availableProducts.find(p => p.code === sp.code);
+                        return found ? { code: found.code, name: found.name } : sp;
+                    });
+                }
             } catch (e) {
                 console.error('Error loading products:', e);
             }
@@ -266,6 +642,8 @@ function productGroupsPage() {
             this.isEditing = false;
             this.editingId = null;
             this.productCodesText = '';
+            this.selectedProducts = [];
+            this.productSearch = '';
             this.styleWeights = { SALE: 60, REVIEW: 30, BRANDING: 10 };
             this.form = {
                 name: '',
@@ -281,6 +659,14 @@ function productGroupsPage() {
             this.editingId = group.id;
             this.productCodesText = (group.product_codes || []).join(', ');
             this.styleWeights = group.default_content_style_weights || { SALE: 60, REVIEW: 30, BRANDING: 10 };
+            
+            // map product_codes -> selectedProducts พร้อมชื่อ ถ้ารู้
+            const codes = group.product_codes || [];
+            this.selectedProducts = codes.map(code => {
+                const found = this.availableProducts.find(p => p.code === code);
+                return found ? { code: found.code, name: found.name } : { code, name: '' };
+            });
+            
             this.form = {
                 name: group.name,
                 product_codes: group.product_codes || [],
@@ -290,19 +676,153 @@ function productGroupsPage() {
             this.showModal = true;
         },
         
-        addProductCode(code) {
-            const codes = this.productCodesText.split(',').map(c => c.trim()).filter(c => c);
-            if (!codes.includes(code)) {
-                codes.push(code);
-                this.productCodesText = codes.join(', ');
+        // ====== Product selection helpers (Select2-style) ======
+        isSelected(code) {
+            return this.selectedProducts.some(p => p.code === code);
+        },
+        
+        toggleSelectProduct(prod) {
+            if (this.isSelected(prod.code)) {
+                this.removeSelectedProduct(prod.code);
+                return;
+            }
+            this.selectedProducts.push({ code: prod.code, name: prod.name });
+            this.syncProductCodesFromSelected();
+            this.productSearch = '';
+        },
+        
+        removeSelectedProduct(code) {
+            this.selectedProducts = this.selectedProducts.filter(p => p.code !== code);
+            this.syncProductCodesFromSelected();
+        },
+        
+        filteredProducts() {
+            const term = this.productSearch.trim().toLowerCase();
+            if (!term) {
+                // limit default list
+                return this.availableProducts.slice(0, 20);
+            }
+            return this.availableProducts
+                .filter(p => {
+                    const code = (p.code || '').toLowerCase();
+                    const name = (p.name || '').toLowerCase();
+                    return code.includes(term) || name.includes(term);
+                })
+                .slice(0, 30);
+        },
+        
+        addProductFromSearch() {
+            const raw = this.productSearch.trim();
+            if (!raw) return;
+            
+            const upper = raw.toUpperCase();
+            const existing = this.availableProducts.find(
+                p => p.code.toUpperCase() === upper || (p.name && p.name.toUpperCase() === upper)
+            );
+            
+            const code = existing ? existing.code : upper;
+            if (!this.isSelected(code)) {
+                this.selectedProducts.push({
+                    code,
+                    name: existing ? existing.name : ''
+                });
+                this.syncProductCodesFromSelected();
+            }
+            this.productSearch = '';
+        },
+        
+        syncProductCodesFromSelected() {
+            const codes = this.selectedProducts.map(p => (p.code || '').toUpperCase().trim()).filter(Boolean);
+            this.form.product_codes = codes;
+            this.productCodesText = codes.join(', ');
+        },
+
+        // ===== Bulk selection & actions =====
+        get isAllSelected() {
+            return this.groups.length > 0 &&
+                   this.selectedIds.length === this.groups.length;
+        },
+
+        toggleSelect(id, event) {
+            const checked = event.target.checked;
+            if (checked) {
+                if (!this.selectedIds.includes(id)) {
+                    this.selectedIds.push(id);
+                }
+            } else {
+                this.selectedIds = this.selectedIds.filter(x => x !== id);
+            }
+        },
+
+        toggleSelectAll(event) {
+            const checked = event.target.checked;
+            if (checked) {
+                this.selectedIds = this.groups.map(g => g.id);
+            } else {
+                this.selectedIds = [];
+            }
+        },
+
+        async bulkUpdateStatus(isActive) {
+            if (this.selectedIds.length === 0) return;
+
+            const confirmText = isActive
+                ? `ตั้งกลุ่มสินค้า ${this.selectedIds.length} กลุ่มเป็น Active ?`
+                : `ตั้งกลุ่มสินค้า ${this.selectedIds.length} กลุ่มเป็น Inactive ?`;
+            if (!confirm(confirmText)) return;
+
+            try {
+                const res = await fetch('/api/v1/product-groups/bulk-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: this.selectedIds, is_active: isActive })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert(err.detail || 'เกิดข้อผิดพลาดในการอัปเดตสถานะกลุ่มสินค้า');
+                    return;
+                }
+
+                await this.loadGroups();
+                this.selectedIds = [];
+            } catch (e) {
+                console.error('Error bulk updating group status:', e);
+                alert('เกิดข้อผิดพลาดในการอัปเดตสถานะกลุ่มสินค้า');
+            }
+        },
+
+        async bulkDelete() {
+            if (this.selectedIds.length === 0) return;
+
+            if (!confirm(`ลบกลุ่มสินค้า ${this.selectedIds.length} กลุ่มที่เลือกหรือไม่?`)) return;
+
+            try {
+                const res = await fetch('/api/v1/product-groups/bulk-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: this.selectedIds })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert(err.detail || 'เกิดข้อผิดพลาดในการลบกลุ่มสินค้าแบบกลุ่ม');
+                    return;
+                }
+
+                await this.loadGroups();
+                this.selectedIds = [];
+            } catch (e) {
+                console.error('Error bulk deleting groups:', e);
+                alert('เกิดข้อผิดพลาดในการลบกลุ่มสินค้าแบบกลุ่ม');
             }
         },
         
         async saveGroup() {
             this.saving = true;
             
-            // Parse product codes
-            this.form.product_codes = this.productCodesText.split(',').map(c => c.trim().toUpperCase()).filter(c => c);
+            // ใช้ selectedProducts เป็น source หลัก
+            this.syncProductCodesFromSelected();
             
             // Set style weights if any non-zero
             const totalWeight = this.styleWeights.SALE + this.styleWeights.REVIEW + this.styleWeights.BRANDING;
@@ -347,6 +867,168 @@ function productGroupsPage() {
             } catch (e) {
                 console.error('Error deleting group:', e);
             }
+        },
+        
+        // ===== Auto Create ABX Methods =====
+        async loadAdvertisers() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const res = await fetch('/api/v1/ads/advertisers', {
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.advertisers = data.data || [];
+                }
+            } catch (e) {
+                console.error('Error loading advertisers:', e);
+            }
+        },
+        
+        async loadTargetingTemplates() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const res = await fetch('/api/v1/ads/targeting-templates', {
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.targetingTemplates = data.data || [];
+                }
+            } catch (e) {
+                console.error('Error loading targeting templates:', e);
+            }
+        },
+        
+        openAutoCreateModal(group) {
+            this.selectedGroupForAbx = group;
+            this.previewAdgroups = [];
+            this.abxForm = {
+                objective_code: 'VV',
+                advertiser_id: '',
+                campaign_id: '',
+                targeting_ids: [],
+                content_styles: ['SALE', 'ECOM'],
+                adgroups_per_style: 5,
+                budget_per_adgroup: 500
+            };
+            this.showAutoCreateModal = true;
+        },
+        
+        async loadCampaignsForAbx() {
+            if (!this.abxForm.advertiser_id) {
+                this.abxCampaigns = [];
+                this.abxForm.campaign_id = '';
+                return;
+            }
+            
+            this.loadingCampaigns = true;
+            try {
+                const token = localStorage.getItem('access_token');
+                const res = await fetch(`/api/v1/ads/campaigns/${this.abxForm.advertiser_id}`, {
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    // Filter by objective
+                    const objMap = { 'VV': 'VIDEO_VIEWS', 'RCH': 'REACH', 'TRF': 'TRAFFIC', 'CVN': 'CONVERSIONS' };
+                    const tiktokObj = objMap[this.abxForm.objective_code] || 'VIDEO_VIEWS';
+                    this.abxCampaigns = (data.data?.list || []).filter(c => c.objective_type === tiktokObj);
+                }
+            } catch (e) {
+                console.error('Error loading campaigns:', e);
+            }
+            this.loadingCampaigns = false;
+        },
+        
+        toggleTargetingId(id) {
+            const idx = this.abxForm.targeting_ids.indexOf(id);
+            if (idx === -1) {
+                this.abxForm.targeting_ids.push(id);
+            } else {
+                this.abxForm.targeting_ids.splice(idx, 1);
+            }
+            this.previewAdgroups = []; // Reset preview
+        },
+        
+        toggleContentStyle(style) {
+            const idx = this.abxForm.content_styles.indexOf(style);
+            if (idx === -1) {
+                this.abxForm.content_styles.push(style);
+            } else {
+                this.abxForm.content_styles.splice(idx, 1);
+            }
+            this.previewAdgroups = []; // Reset preview
+        },
+        
+        async previewAbxAdgroups() {
+            if (!this.canPreviewAbx) return;
+            
+            this.loadingPreview = true;
+            try {
+                const res = await fetch(`/api/v1/product-groups/${this.selectedGroupForAbx.id}/abx/preview`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        advertiser_id: this.abxForm.advertiser_id,
+                        campaign_id: this.abxForm.campaign_id,
+                        objective_code: this.abxForm.objective_code,
+                        targeting_ids: this.abxForm.targeting_ids,
+                        content_styles: this.abxForm.content_styles,
+                        adgroups_per_style: this.abxForm.adgroups_per_style,
+                        budget_per_adgroup: this.abxForm.budget_per_adgroup
+                    })
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    this.previewAdgroups = data.adgroups || [];
+                } else {
+                    const err = await res.json();
+                    alert(err.detail || 'เกิดข้อผิดพลาดในการ preview');
+                }
+            } catch (e) {
+                console.error('Error previewing adgroups:', e);
+                alert('เกิดข้อผิดพลาดในการ preview');
+            }
+            this.loadingPreview = false;
+        },
+        
+        async createAbxAdgroups() {
+            if (!this.canCreateAbx) return;
+            
+            const total = this.previewAdgroups.length;
+            if (!confirm(`สร้าง ${total} ABX AdGroups บน TikTok?`)) return;
+            
+            this.creatingAbx = true;
+            try {
+                const res = await fetch(`/api/v1/product-groups/${this.selectedGroupForAbx.id}/abx/auto-create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        advertiser_id: this.abxForm.advertiser_id,
+                        campaign_id: this.abxForm.campaign_id,
+                        objective_code: this.abxForm.objective_code,
+                        targeting_ids: this.abxForm.targeting_ids,
+                        content_styles: this.abxForm.content_styles,
+                        adgroups_per_style: this.abxForm.adgroups_per_style,
+                        budget_per_adgroup: this.abxForm.budget_per_adgroup
+                    })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert(`✅ สร้างสำเร็จ ${data.created_count} adgroups` + (data.failed_count > 0 ? `, ล้มเหลว ${data.failed_count}` : ''));
+                    this.showAutoCreateModal = false;
+                } else {
+                    alert(`❌ ${data.message}`);
+                }
+            } catch (e) {
+                console.error('Error creating adgroups:', e);
+                alert('เกิดข้อผิดพลาดในการสร้าง adgroups');
+            }
+            this.creatingAbx = false;
         }
     };
 }

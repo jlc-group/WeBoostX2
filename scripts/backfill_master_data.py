@@ -16,11 +16,13 @@ Usage:
     python scripts/backfill_master_data.py --targeting
 """
 
+import argparse
 import os
 import sys
-import argparse
 from datetime import datetime
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
+
+from dotenv import load_dotenv
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -28,14 +30,27 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
 from app.core.config import settings
+from app.core.database import SessionLocal
 
+# --------------------------------------------------
+# Old database connection (from OLD_DATABASE_URL / DATABASE_URL / .env.old)
+# --------------------------------------------------
 
-# Old database connection (configure this)
-OLD_DB_URL = os.getenv(
-    "OLD_DATABASE_URL", 
-    "postgresql://user:password@localhost:5432/starcontent"
+# พยายามโหลด .env ของระบบเก่าอัตโนมัติ (ถ้ามี) เพื่อดึง DATABASE_URL
+DEFAULT_OLD_ENV_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "old_ref",
+    "WeBoostX",
+    ".env.old",
+)
+if os.path.isfile(DEFAULT_OLD_ENV_PATH):
+    load_dotenv(DEFAULT_OLD_ENV_PATH)
+
+OLD_DB_URL = (
+    os.getenv("OLD_DATABASE_URL")
+    or os.getenv("DATABASE_URL")
+    or "postgresql://user:password@localhost:5432/starcontent"
 )
 
 
@@ -117,8 +132,9 @@ def backfill_products(db: Session, old_conn) -> Dict:
 
 def backfill_product_groups(db: Session, old_conn) -> Dict:
     """Migrate product groups from old system"""
-    from app.models import ProductGroup
     import json
+
+    from app.models import ProductGroup
     
     print("\n" + "=" * 60)
     print("Migrating Product Groups...")
@@ -191,9 +207,10 @@ def backfill_product_groups(db: Session, old_conn) -> Dict:
 
 def backfill_targeting(db: Session, old_conn) -> Dict:
     """Migrate TikTok targeting from old system"""
+    import json
+
     from app.models import TargetingTemplate
     from app.models.enums import Platform
-    import json
     
     print("\n" + "=" * 60)
     print("Migrating TikTok Targeting...")

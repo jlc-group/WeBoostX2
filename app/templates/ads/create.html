@@ -1,0 +1,1644 @@
+{% extends "layouts/app.html" %}
+
+{% block title %}สร้างโฆษณา TikTok{% endblock %}
+
+{% block head %}
+<style>
+    .content-preview {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 16px;
+        padding: 1.5rem;
+        color: white;
+    }
+    .content-preview img {
+        border-radius: 12px;
+        max-height: 200px;
+        object-fit: cover;
+    }
+    .stat-badge {
+        background: rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+    .form-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    .form-card-header {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #1a1a2e;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #f0f0f0;
+    }
+    .name-preview {
+        background: #f8f9fa;
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.875rem;
+        word-break: break-all;
+    }
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid rgba(255,255,255,0.3);
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    .alert-toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        min-width: 300px;
+        animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    /* Objective Cards */
+    .objective-card {
+        border: 3px solid transparent;
+        border-radius: 12px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+        text-align: center;
+    }
+    .objective-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+    }
+    .objective-card.selected {
+        border-color: currentColor;
+    }
+    .objective-card.vv { --card-color: #8b5cf6; }
+    .objective-card.vv.selected { border-color: #8b5cf6; background: #f5f3ff; }
+    .objective-card.rch { --card-color: #3b82f6; }
+    .objective-card.rch.selected { border-color: #3b82f6; background: #eff6ff; }
+    .objective-card.trf { --card-color: #10b981; }
+    .objective-card.trf.selected { border-color: #10b981; background: #ecfdf5; }
+    .objective-card.cvn { --card-color: #f59e0b; }
+    .objective-card.cvn.selected { border-color: #f59e0b; background: #fffbeb; }
+    
+    .objective-card .icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        margin: 0 auto 0.75rem;
+        color: white;
+    }
+    .objective-card.vv .icon { background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%); }
+    .objective-card.rch .icon { background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%); }
+    .objective-card.trf .icon { background: linear-gradient(135deg, #10b981 0%, #34d399 100%); }
+    .objective-card.cvn .icon { background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); }
+    
+    /* Type Selection Cards */
+    .type-card {
+        border: 3px solid transparent;
+        border-radius: 16px;
+        padding: 1.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+    }
+    .type-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    .type-card.selected {
+        border-color: #667eea;
+        background: linear-gradient(135deg, #667eea10 0%, #764ba220 100%);
+    }
+    .type-card .icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        margin-bottom: 1rem;
+    }
+    .type-card.ace .icon {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    .type-card.abx .icon {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+    }
+    
+    /* Step indicator */
+    .step-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .step-dot {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        background: #e5e7eb;
+        color: #6b7280;
+    }
+    .step-dot.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    .step-dot.completed {
+        background: #10b981;
+        color: white;
+    }
+    .step-line {
+        flex: 1;
+        height: 3px;
+        background: #e5e7eb;
+        border-radius: 2px;
+    }
+    .step-line.completed {
+        background: #10b981;
+    }
+    
+    /* Objective Badge */
+    .objective-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .objective-badge.vv { background: #f5f3ff; color: #8b5cf6; }
+    .objective-badge.rch { background: #eff6ff; color: #3b82f6; }
+    .objective-badge.trf { background: #ecfdf5; color: #10b981; }
+    .objective-badge.cvn { background: #fffbeb; color: #f59e0b; }
+</style>
+{% endblock head %}
+
+{% block content %}
+<div x-data="adCreateApp()" x-init="init()">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">🎯 สร้างโฆษณา TikTok</h1>
+            <p class="text-gray-500 mt-1">สร้าง AdGroup และ Ad สำหรับ Content ที่เลือก</p>
+        </div>
+        <a href="/master/contents/tiktok" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-2"></i>กลับหน้า Contents
+        </a>
+    </div>
+    
+    <!-- Step Indicator -->
+    <div class="step-indicator mb-6">
+        <div class="step-dot" :class="currentStep >= 1 ? (currentStep > 1 ? 'completed' : 'active') : ''">1</div>
+        <div class="step-line" :class="currentStep > 1 ? 'completed' : ''"></div>
+        <div class="step-dot" :class="currentStep >= 2 ? (currentStep > 2 ? 'completed' : 'active') : ''">2</div>
+        <div class="step-line" :class="currentStep > 2 ? 'completed' : ''"></div>
+        <div class="step-dot" :class="currentStep >= 3 ? (currentStep > 3 ? 'completed' : 'active') : ''">3</div>
+        <div class="step-line" :class="currentStep > 3 ? 'completed' : ''"></div>
+        <div class="step-dot" :class="currentStep >= 4 ? (currentStep > 4 ? 'completed' : 'active') : ''">4</div>
+        <div class="step-line" :class="currentStep > 4 ? 'completed' : ''"></div>
+        <div class="step-dot" :class="currentStep >= 5 ? (currentStep > 5 ? 'completed' : 'active') : ''">5</div>
+        <div class="step-line" :class="currentStep > 5 ? 'completed' : ''"></div>
+        <div class="step-dot" :class="currentStep >= 6 ? 'active' : ''">6</div>
+    </div>
+    
+    <!-- Main Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left: Content Preview -->
+        <div>
+            <div class="content-preview sticky top-4">
+                <div class="flex items-start gap-4 mb-3">
+                    {% if content.thumbnail_url %}
+                    <img src="{{ content.thumbnail_url }}" alt="Thumbnail" class="w-24 h-24 object-cover rounded-lg">
+                    {% else %}
+                    <div class="w-24 h-24 bg-gray-700 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-video text-2xl text-gray-500"></i>
+                    </div>
+                    {% endif %}
+                    <div class="flex-1">
+                        <p class="text-xs opacity-70 mb-1">Item ID</p>
+                        <a href="/contents/tiktok?q={{ content.platform_post_id }}" 
+                           class="text-sm font-mono mb-2 block hover:text-yellow-300 hover:underline transition-colors">
+                            {{ content.platform_post_id[:20] }}...
+                        </a>
+                        <p class="text-xs opacity-70 mb-1">Products</p>
+                        <p class="text-sm font-semibold text-yellow-300">{{ products or 'N/A' }}</p>
+                    </div>
+                </div>
+                {% if content.caption %}
+                <p class="text-xs opacity-60 mt-3 line-clamp-2">{{ content.caption[:100] }}...</p>
+                {% endif %}
+                <div class="flex flex-wrap gap-2 mt-4">
+                    <span class="stat-badge">
+                        <i class="fas fa-eye"></i> {{ "{:,}".format(content.video_views or 0) }}
+                    </span>
+                    <span class="stat-badge">
+                        <i class="fas fa-heart"></i> {{ "{:,}".format(content.likes or 0) }}
+                    </span>
+                    <span class="stat-badge">
+                        <i class="fas fa-comment"></i> {{ "{:,}".format(content.comments or 0) }}
+                    </span>
+                </div>
+                
+                <!-- Selected Config Summary -->
+                <div class="mt-4 pt-4 border-t border-white/20" x-show="objectiveCode">
+                    <p class="text-xs opacity-70 mb-2">การตั้งค่าที่เลือก</p>
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2">
+                            <span class="objective-badge" :class="objectiveCode.toLowerCase()">
+                                <span x-text="getObjectiveIcon(objectiveCode)"></span>
+                                <span x-text="objectiveCode"></span>
+                            </span>
+                            <span x-show="adType" class="px-2 py-0.5 rounded bg-white/10 text-xs" x-text="adType"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Existing Ads Summary -->
+                <div class="mt-4 pt-4 border-t border-white/20">
+                    <p class="text-xs opacity-70 mb-2">โฆษณาที่มีอยู่</p>
+                    <div class="flex gap-3">
+                        <div class="text-center">
+                            <div class="text-lg font-bold text-purple-300">{{ content.ace_ad_count or 0 }}</div>
+                            <div class="text-xs opacity-60">ACE</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-lg font-bold text-pink-300">{{ content.abx_ad_count or 0 }}</div>
+                            <div class="text-xs opacity-60">ABX</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right: Form -->
+        <div class="lg:col-span-2">
+            <!-- Product Warning -->
+            <div x-show="!hasProducts" class="bg-red-50 border-2 border-red-300 rounded-xl p-4 mb-4">
+                <div class="flex items-start">
+                    <i class="fas fa-exclamation-triangle text-red-500 text-xl mr-3 mt-1"></i>
+                    <div>
+                        <p class="font-semibold text-red-800">Content ยังไม่มี Product</p>
+                        <p class="text-sm text-red-600 mt-1">กรุณาเพิ่ม Product ให้ Content ก่อนสร้างโฆษณา</p>
+                        <a href="/contents/tiktok?q={{ content.platform_post_id }}" class="btn btn-sm btn-outline-danger mt-3">
+                            <i class="fas fa-arrow-left mr-1"></i>กลับไปตั้งค่า Product
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Targeting Warning -->
+            <div x-show="hasProducts && !hasPreferredTargeting" class="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 mb-4">
+                <div class="flex items-start">
+                    <i class="fas fa-crosshairs text-amber-500 text-xl mr-3 mt-1"></i>
+                    <div>
+                        <p class="font-semibold text-amber-800">Content ยังไม่ได้กำหนด Targeting</p>
+                        <p class="text-sm text-amber-700 mt-1">กรุณากำหนด Preferred Targeting ที่หน้า Edit Content ก่อนสร้างโฆษณา</p>
+                        <p class="text-xs text-amber-600 mt-2">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Targeting กำหนดโดย Content Creator เพื่อระบุว่า Content นี้เหมาะกับกลุ่มเป้าหมายใด
+                        </p>
+                        <a href="/master/contents/tiktok" class="btn btn-sm btn-outline-warning mt-3">
+                            <i class="fas fa-arrow-left mr-1"></i>กลับไปกำหนด Targeting
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 1: Select Objective -->
+            <div class="form-card" x-show="hasProducts && hasPreferredTargeting">
+                <div class="form-card-header">
+                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-sm font-bold mr-2">1</span>
+                    เลือก Objective <span class="text-sm font-normal text-gray-500 ml-2">(จุดประสงค์การยิง Ad)</span>
+                </div>
+                <div class="grid grid-cols-4 gap-3">
+                    <div 
+                        class="objective-card vv" 
+                        :class="{ 'selected': objectiveCode === 'VV' }"
+                        @click="selectObjective('VV')"
+                    >
+                        <div class="icon"><i class="fas fa-play-circle"></i></div>
+                        <div class="font-bold text-sm">VV</div>
+                        <div class="text-xs text-gray-500">Video Views</div>
+                    </div>
+                    <div 
+                        class="objective-card rch" 
+                        :class="{ 'selected': objectiveCode === 'RCH' }"
+                        @click="selectObjective('RCH')"
+                    >
+                        <div class="icon"><i class="fas fa-users"></i></div>
+                        <div class="font-bold text-sm">RCH</div>
+                        <div class="text-xs text-gray-500">Reach</div>
+                    </div>
+                    <div 
+                        class="objective-card trf" 
+                        :class="{ 'selected': objectiveCode === 'TRF' }"
+                        @click="selectObjective('TRF')"
+                    >
+                        <div class="icon"><i class="fas fa-external-link-alt"></i></div>
+                        <div class="font-bold text-sm">TRF</div>
+                        <div class="text-xs text-gray-500">Traffic</div>
+                    </div>
+                    <div 
+                        class="objective-card cvn" 
+                        :class="{ 'selected': objectiveCode === 'CVN' }"
+                        @click="selectObjective('CVN')"
+                    >
+                        <div class="icon"><i class="fas fa-bullseye"></i></div>
+                        <div class="font-bold text-sm">CVN</div>
+                        <div class="text-xs text-gray-500">Conversions</div>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 mt-3">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Objective จะกำหนด billing event และ optimization goal โดยอัตโนมัติ
+                </p>
+                
+                <!-- Legacy Naming Option (VV only) -->
+                <div x-show="objectiveCode === 'VV'" x-transition class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" x-model="useLegacyNaming" 
+                               class="mt-1 rounded border-amber-300 text-amber-600 focus:ring-amber-500">
+                        <div>
+                            <span class="font-medium text-amber-800">ใช้ Naming Format แบบเดิม (Legacy V1)</span>
+                            <p class="text-xs text-amber-600 mt-1">
+                                <i class="fas fa-history mr-1"></i>
+                                Compatible กับระบบเก่า WeBoostX - แนะนำสำหรับช่วง Transition
+                            </p>
+                            <div class="text-xs text-amber-700 mt-2 font-mono bg-amber-100 p-2 rounded">
+                                <div x-show="useLegacyNaming">
+                                    V1: [Products]_ACEBOOSTX_Date / [Products]_ACE_&lt;Targeting&gt;_ItemId
+                                </div>
+                                <div x-show="!useLegacyNaming">
+                                    V2: [Products]_VV_BOOSTX_Date / [Products]_ACE_VV_(Targeting)_Style#Num
+                                </div>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Step 2: Select Type -->
+            <div class="form-card" x-show="objectiveCode" x-transition>
+                <div class="form-card-header">
+                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-sm font-bold mr-2">2</span>
+                    เลือกประเภทการสร้างโฆษณา
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div 
+                        class="type-card ace" 
+                        :class="{ 'selected': adType === 'ACE' }"
+                        @click="selectType('ACE')"
+                    >
+                        <div class="icon">
+                            <i class="fas fa-cube"></i>
+                        </div>
+                        <h3 class="font-bold text-lg mb-1">ACE</h3>
+                        <p class="text-gray-600 text-sm mb-2">1 AdGroup : 1 Content</p>
+                        <ul class="text-xs text-gray-500 space-y-1">
+                            <li><i class="fas fa-check text-green-500 mr-1"></i> สร้าง AdGroup ใหม่</li>
+                            <li><i class="fas fa-check text-green-500 mr-1"></i> เลือก Campaign</li>
+                            <li><i class="fas fa-check text-green-500 mr-1"></i> เลือก Targeting</li>
+                        </ul>
+                    </div>
+                    <div 
+                        class="type-card abx" 
+                        :class="{ 'selected': adType === 'ABX' }"
+                        @click="selectType('ABX')"
+                    >
+                        <div class="icon">
+                            <i class="fas fa-cubes"></i>
+                        </div>
+                        <h3 class="font-bold text-lg mb-1">ABX</h3>
+                        <p class="text-gray-600 text-sm mb-2">1 AdGroup : N Contents</p>
+                        <ul class="text-xs text-gray-500 space-y-1">
+                            <li><i class="fas fa-check text-green-500 mr-1"></i> ใช้ AdGroup ที่มีอยู่</li>
+                            <li><i class="fas fa-check text-green-500 mr-1"></i> เพิ่ม Content เข้า AdGroup</li>
+                            <li><i class="fas fa-check text-green-500 mr-1"></i> หรือสร้าง AdGroup ใหม่</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 3: Select Advertiser -->
+            <div class="form-card" x-show="adType" x-transition>
+                <div class="form-card-header">
+                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-sm font-bold mr-2">3</span>
+                    เลือก Advertiser
+                </div>
+                <select x-model="advertiserId" @change="onAdvertiserChange()" class="form-select">
+                    <option value="">-- Select Advertiser --</option>
+                    {% for adv in advertisers %}
+                    <option value="{{ adv.external_account_id }}">{{ adv.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Step 4: ACE - Campaign & Targeting -->
+            <template x-if="adType === 'ACE' && advertiserId">
+                <div>
+                    <!-- Campaign Selection -->
+                    <div class="form-card" x-transition>
+                        <div class="form-card-header">
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-sm font-bold mr-2">4</span>
+                            เลือก Campaign
+                            <span class="objective-badge ml-2" :class="objectiveCode.toLowerCase()">
+                                <span x-text="objectiveCode"></span>
+                            </span>
+                        </div>
+                        <div x-show="loadingCampaigns" class="text-center py-4">
+                            <i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
+                        </div>
+                        <div x-show="!loadingCampaigns">
+                            <select x-model="campaignId" @change="onCampaignChange()" class="form-select mb-3">
+                                <option value="">-- Select Campaign --</option>
+                                <template x-for="camp in filteredCampaigns" :key="camp.campaign_id">
+                                    <option 
+                                        :value="camp.campaign_id" 
+                                        x-text="camp.campaign_name + ' [' + getObjectiveLabelFull(camp.objective_type) + ']'"
+                                    ></option>
+                                </template>
+                            </select>
+                            
+                            <!-- Selected Campaign Info -->
+                            <div x-show="campaignId && selectedCampaign" class="mb-3 rounded-xl overflow-hidden border-2" :class="isMatchingCampaign ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'">
+                                <div class="px-4 py-2 text-sm" :class="isMatchingCampaign ? 'bg-green-100' : 'bg-gray-100'">
+                                    <span x-show="isMatchingCampaign" class="text-green-700 font-semibold">
+                                        <i class="fas fa-check-circle mr-1"></i> Campaign ตรงกับ Product
+                                    </span>
+                                    <span x-show="!isMatchingCampaign" class="text-gray-600">
+                                        <i class="fas fa-info-circle mr-1"></i> Campaign ที่เลือก
+                                    </span>
+                                </div>
+                                <div class="px-4 py-3 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-gray-500 text-sm">Objective:</span>
+                                        <span class="font-semibold" :class="getObjectiveColorClass(selectedCampaign?.objective_type)">
+                                            <span x-text="getObjectiveLabelFull(selectedCampaign?.objective_type)"></span>
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-gray-500 text-sm">Status:</span>
+                                        <span 
+                                            class="px-2 py-0.5 rounded-full text-xs font-medium"
+                                            :class="selectedCampaign?.operation_status === 'ENABLE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                                            x-text="selectedCampaign?.operation_status === 'ENABLE' ? 'Active' : (selectedCampaign?.operation_status || '')"
+                                        ></span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Create New Campaign -->
+                            <div x-show="!matchingCampaign" class="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4">
+                                <p class="text-sm text-yellow-800 mb-3 font-medium">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    ไม่พบ Campaign สำหรับ <span class="font-semibold" x-text="objectiveCode"></span> + "<span x-text="products" class="font-semibold"></span>"
+                                </p>
+                                <button @click="openCreateCampaignModal()" class="btn btn-warning w-full" :disabled="creatingCampaign">
+                                    <i class="fas fa-plus mr-2"></i>
+                                    <span x-text="creatingCampaign ? 'กำลังสร้าง...' : 'สร้าง Campaign ใหม่'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Targeting Selection -->
+                    <div class="form-card" x-show="campaignId" x-transition>
+                        <div class="form-card-header">
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-sm font-bold mr-2">5</span>
+                            เลือก Targeting
+                        </div>
+                        <select x-model="targetingId" @change="onTargetingChange()" class="form-select">
+                            <option value="">-- Select Targeting Template --</option>
+                            {% for tpl in targeting_templates %}
+                            <option value="{{ tpl.id }}" data-code="{{ tpl.name }}">{{ tpl.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </template>
+            
+            <!-- Step 4: ABX - Campaign Selection (auto-select default) -->
+            <template x-if="adType === 'ABX' && advertiserId">
+                <div>
+                    <div class="form-card" x-transition>
+                        <div class="form-card-header">
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-pink-100 text-pink-600 text-sm font-bold mr-2">4</span>
+                            เลือก Campaign
+                            <span class="objective-badge ml-2" :class="objectiveCode.toLowerCase()">
+                                <span x-text="objectiveCode"></span>
+                            </span>
+                        </div>
+                        <div x-show="loadingCampaigns" class="text-center py-4">
+                            <i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
+                        </div>
+                        <div x-show="!loadingCampaigns">
+                            <select x-model="abxCampaignId" @change="onAbxCampaignChange()" class="form-select mb-3">
+                                <option value="">-- Select Campaign --</option>
+                                <template x-for="camp in abxFilteredCampaigns" :key="camp.campaign_id">
+                                    <option 
+                                        :value="camp.campaign_id" 
+                                        x-text="camp.campaign_name"
+                                    ></option>
+                                </template>
+                            </select>
+                            
+                            <!-- Selected ABX Campaign Info -->
+                            <div x-show="abxCampaignId && abxSelectedCampaign" class="mb-3 rounded-xl overflow-hidden border-2" :class="isAbxDefaultCampaign ? 'border-green-400 bg-green-50' : 'border-pink-200 bg-pink-50'">
+                                <div class="px-4 py-2 text-sm" :class="isAbxDefaultCampaign ? 'bg-green-100' : 'bg-pink-100'">
+                                    <span x-show="isAbxDefaultCampaign" class="text-green-700 font-semibold">
+                                        <i class="fas fa-check-circle mr-1"></i> Default ABX Campaign (V1 Pattern)
+                                    </span>
+                                    <span x-show="!isAbxDefaultCampaign" class="text-pink-700 font-semibold">
+                                        <i class="fas fa-flag mr-1"></i> Campaign ที่เลือก
+                                    </span>
+                                </div>
+                                <div class="px-4 py-3 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-gray-500 text-sm">Objective:</span>
+                                        <span class="font-semibold" :class="getObjectiveColorClass(abxSelectedCampaign?.objective_type)">
+                                            <span x-text="getObjectiveLabelFull(abxSelectedCampaign?.objective_type)"></span>
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-gray-500 text-sm">Status:</span>
+                                        <span 
+                                            class="px-2 py-0.5 rounded-full text-xs font-medium"
+                                            :class="abxSelectedCampaign?.operation_status === 'ENABLE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                                            x-text="abxSelectedCampaign?.operation_status === 'ENABLE' ? 'Active' : (abxSelectedCampaign?.operation_status || '')"
+                                        ></span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- No Campaign for ABX -->
+                            <div x-show="!abxMatchingCampaign && campaigns.length > 0" class="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 mb-3">
+                                <p class="text-sm text-yellow-800 mb-2 font-medium">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    ไม่พบ Default Campaign สำหรับ ABX: "<span x-text="products" class="font-semibold"></span>"
+                                </p>
+                                <p class="text-xs text-yellow-700 mb-3">
+                                    คาดหวังชื่อ: <code class="bg-yellow-100 px-1 rounded" x-text="expectedAbxCampaignName"></code>
+                                </p>
+                                <button @click="openCreateCampaignModal()" class="btn btn-warning w-full btn-sm">
+                                    <i class="fas fa-plus mr-2"></i>สร้าง Campaign ใหม่
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Step 5: ABX - AdGroup Selection -->
+                    <div class="form-card" x-show="abxCampaignId" x-transition>
+                        <div class="form-card-header">
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-pink-100 text-pink-600 text-sm font-bold mr-2">5</span>
+                            เลือก ABX AdGroup (ตาม Targeting)
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            เลือก AdGroup ที่มี Targeting ตรงกับความต้องการ (ABX ใช้ AdGroup เดิมซ้ำได้)
+                        </p>
+                        <div x-show="loadingAdgroups" class="text-center py-4">
+                            <i class="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
+                        </div>
+                        <div x-show="!loadingAdgroups">
+                            <select x-model="adgroupId" @change="onAdgroupChange()" class="form-select mb-3">
+                                <option value="">-- Select ABX AdGroup --</option>
+                                <template x-for="ag in abxAdgroupsForCampaign" :key="ag.adgroup_id">
+                                    <option 
+                                        :value="ag.adgroup_id" 
+                                        x-text="ag.adgroup_name + (ag.operation_status === 'ENABLE' ? ' ✓' : ' (Disabled)')"
+                                    ></option>
+                                </template>
+                            </select>
+                            
+                            <!-- Selected AdGroup Info -->
+                            <div x-show="adgroupId && selectedAdgroup" class="mb-3 rounded-xl overflow-hidden border-2 border-pink-200 bg-pink-50">
+                                <div class="px-4 py-2 text-sm bg-pink-100">
+                                    <span class="text-pink-700 font-semibold">
+                                        <i class="fas fa-layer-group mr-1"></i> ABX AdGroup ที่เลือก
+                                    </span>
+                                </div>
+                                <div class="px-4 py-3 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-gray-500 text-sm">Targeting:</span>
+                                        <span class="font-medium text-gray-700" x-text="extractTargetingFromName(selectedAdgroup?.adgroup_name)"></span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-gray-500 text-sm">Budget:</span>
+                                        <span class="font-medium text-gray-700" x-text="selectedAdgroup?.budget ? selectedAdgroup.budget + ' THB/day' : 'N/A'"></span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-gray-500 text-sm">Status:</span>
+                                        <span 
+                                            class="px-2 py-0.5 rounded-full text-xs font-medium"
+                                            :class="selectedAdgroup?.operation_status === 'ENABLE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                                            x-text="selectedAdgroup?.operation_status === 'ENABLE' ? 'Active' : (selectedAdgroup?.operation_status || '')"
+                                        ></span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- No ABX AdGroup for this Product -->
+                            <div x-show="abxAdgroupsForCampaign.length === 0" class="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4">
+                                <p class="text-sm text-yellow-800 mb-3 font-medium">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    ไม่พบ ABX AdGroup สำหรับ Product "<span x-text="products" class="font-semibold"></span>"
+                                </p>
+                                <button @click="openCreateAbxAdgroupModal()" class="btn btn-warning w-full">
+                                    <i class="fas fa-plus mr-2"></i>สร้าง ABX AdGroup ใหม่
+                                </button>
+                            </div>
+                            
+                            <!-- Create New ABX AdGroup -->
+                            <div x-show="abxAdgroupsForCampaign.length > 0" class="mt-3">
+                                <button @click="openCreateAbxAdgroupModal()" class="btn btn-outline-secondary btn-sm w-full">
+                                    <i class="fas fa-plus mr-1"></i>หรือ สร้าง ABX AdGroup ใหม่
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            
+            <!-- Step 6: Names (both ACE and ABX now have 6 steps) -->
+            <div class="form-card" x-show="canShowNames" x-transition>
+                <div class="form-card-header">
+                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 text-sm font-bold mr-2">6</span>
+                    ตั้งชื่อ
+                </div>
+                
+                <!-- ACE: AdGroup + Ad Name -->
+                <template x-if="adType === 'ACE'">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="form-label">AdGroup Name</label>
+                            <input type="text" x-model="adgroupName" class="form-control" placeholder="Auto-generated">
+                            <div class="name-preview mt-2" x-text="adgroupName || '(จะสร้างอัตโนมัติ)'"></div>
+                        </div>
+                        <div>
+                            <label class="form-label">Ad Name</label>
+                            <input type="text" x-model="adName" class="form-control" placeholder="Auto-generated">
+                            <div class="name-preview mt-2" x-text="adName || '(จะสร้างอัตโนมัติ)'"></div>
+                        </div>
+                    </div>
+                </template>
+                
+                <!-- ABX: Ad Name only -->
+                <template x-if="adType === 'ABX'">
+                    <div>
+                        <label class="form-label">Ad Name</label>
+                        <input type="text" x-model="adName" class="form-control" placeholder="Auto-generated">
+                        <div class="name-preview mt-2" x-text="adName || '(จะสร้างอัตโนมัติ)'"></div>
+                    </div>
+                </template>
+            </div>
+            
+            <!-- Submit Button -->
+            <button 
+                @click="createAd()" 
+                class="btn btn-lg w-full"
+                :class="adType === 'ACE' ? 'btn-primary' : 'btn-pink'"
+                :disabled="!canCreate || creating"
+                x-show="canShowNames"
+            >
+                <i class="fas fa-rocket mr-2"></i>
+                <span x-text="getSubmitText()"></span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" x-show="creating" x-transition>
+        <div class="loading-spinner"></div>
+    </div>
+    
+    <!-- Toast Messages -->
+    <div x-show="toast.show" x-transition class="alert-toast">
+        <div :class="'alert alert-' + toast.type + ' shadow-lg'">
+            <i :class="toast.type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'" class="mr-2"></i>
+            <span x-text="toast.message"></span>
+        </div>
+    </div>
+    
+    <!-- Create Campaign Modal -->
+    <div 
+        x-show="showCampaignModal" 
+        x-transition 
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+        @click.self="showCampaignModal = false"
+    >
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" @click.stop>
+            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-white">
+                        <h3 class="text-lg font-bold">🎯 สร้าง Campaign ใหม่</h3>
+                        <p class="text-indigo-200 text-sm">กำหนดค่าสำหรับ Campaign</p>
+                    </div>
+                    <button class="text-white/80 hover:text-white text-xl" @click="showCampaignModal = false">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="p-6 space-y-5">
+                <!-- Objective Badge -->
+                <div class="flex items-center justify-center gap-3">
+                    <span class="objective-badge text-base px-4 py-2" :class="objectiveCode.toLowerCase()">
+                        <i :class="getObjectiveIconClass(objectiveCode)" class="mr-1"></i>
+                        <span x-text="objectiveCode + ' - ' + getObjectiveLabelFull(objectiveCodeToTikTok(objectiveCode))"></span>
+                    </span>
+                </div>
+                
+                <!-- Campaign Name -->
+                <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                        <i class="fas fa-lock mr-1"></i> ชื่อ Campaign (สร้างอัตโนมัติ)
+                    </label>
+                    <div class="font-mono text-gray-800 bg-white border border-gray-300 rounded-lg px-4 py-3" x-text="newCampaignName"></div>
+                </div>
+                
+                <!-- Budget Mode -->
+                <div class="bg-green-50 rounded-xl p-4 border-2 border-green-200">
+                    <label class="block text-xs font-semibold text-green-700 uppercase tracking-wide mb-3">
+                        <i class="fas fa-wallet mr-1"></i> Budget Mode
+                    </label>
+                    <div class="flex gap-3">
+                        <label class="flex-1 cursor-pointer">
+                            <input type="radio" value="BUDGET_MODE_DAY" x-model="campaignBudgetMode" class="sr-only">
+                            <div class="bg-white border-2 rounded-lg p-4 text-center transition-all" :class="campaignBudgetMode === 'BUDGET_MODE_DAY' ? 'border-green-500 bg-green-50' : 'border-gray-300'">
+                                <i class="fas fa-calendar-day text-2xl mb-2" :class="campaignBudgetMode === 'BUDGET_MODE_DAY' ? 'text-green-600' : 'text-gray-400'"></i>
+                                <div class="font-semibold" :class="campaignBudgetMode === 'BUDGET_MODE_DAY' ? 'text-green-700' : 'text-gray-600'">รายวัน</div>
+                            </div>
+                        </label>
+                        <label class="flex-1 cursor-pointer">
+                            <input type="radio" value="BUDGET_MODE_INFINITE" x-model="campaignBudgetMode" class="sr-only">
+                            <div class="bg-white border-2 rounded-lg p-4 text-center transition-all" :class="campaignBudgetMode === 'BUDGET_MODE_INFINITE' ? 'border-green-500 bg-green-50' : 'border-gray-300'">
+                                <i class="fas fa-infinity text-2xl mb-2" :class="campaignBudgetMode === 'BUDGET_MODE_INFINITE' ? 'text-green-600' : 'text-gray-400'"></i>
+                                <div class="font-semibold" :class="campaignBudgetMode === 'BUDGET_MODE_INFINITE' ? 'text-green-700' : 'text-gray-600'">ไม่จำกัด</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Daily Budget -->
+                <div x-show="campaignBudgetMode === 'BUDGET_MODE_DAY'" x-transition class="bg-amber-50 rounded-xl p-4 border-2 border-amber-200">
+                    <label class="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">
+                        <i class="fas fa-coins mr-1"></i> Daily Budget
+                    </label>
+                    <div class="flex items-center gap-3">
+                        <input type="number" min="1" class="flex-1 bg-white border-2 border-amber-300 rounded-lg px-4 py-3 text-xl font-bold focus:border-amber-500" x-model.number="campaignDailyBudget" />
+                        <span class="text-lg font-semibold text-amber-700">THB/วัน</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t">
+                <button class="px-5 py-2.5 rounded-lg border-2 border-gray-300 text-gray-600 font-medium hover:bg-gray-100" @click="showCampaignModal = false">ยกเลิก</button>
+                <button class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-700 hover:to-purple-700 shadow-lg disabled:opacity-50" @click="createCampaign()" :disabled="creatingCampaign">
+                    <i class="fas fa-plus mr-2"></i>
+                    <span x-text="creatingCampaign ? 'กำลังสร้าง...' : 'สร้าง Campaign'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create ABX AdGroup Modal -->
+    <div 
+        x-show="showAbxAdgroupModal" 
+        x-transition 
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+        @click.self="showAbxAdgroupModal = false"
+    >
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" @click.stop>
+            <div class="bg-gradient-to-r from-pink-500 to-rose-500 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-white">
+                        <h3 class="text-lg font-bold">📦 สร้าง ABX AdGroup ใหม่</h3>
+                        <p class="text-pink-200 text-sm">กำหนดค่าสำหรับ ABX AdGroup</p>
+                    </div>
+                    <button class="text-white/80 hover:text-white text-xl" @click="showAbxAdgroupModal = false">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="p-6 space-y-5">
+                <!-- Objective Badge -->
+                <div class="flex items-center justify-center gap-3">
+                    <span class="objective-badge text-base px-4 py-2" :class="objectiveCode.toLowerCase()">
+                        <i :class="getObjectiveIconClass(objectiveCode)" class="mr-1"></i>
+                        <span x-text="objectiveCode + ' - ' + getObjectiveLabelFull(objectiveCodeToTikTok(objectiveCode))"></span>
+                    </span>
+                </div>
+                
+                <!-- Campaign Selection for ABX -->
+                <div class="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+                    <label class="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">
+                        <i class="fas fa-flag mr-1"></i> เลือก Campaign
+                    </label>
+                    <select class="w-full bg-white border-2 border-blue-300 rounded-lg px-4 py-3 font-medium" x-model="abxCampaignId">
+                        <option value="">-- Select Campaign --</option>
+                        <template x-for="camp in filteredCampaigns" :key="camp.campaign_id">
+                            <option :value="camp.campaign_id" x-text="camp.campaign_name"></option>
+                        </template>
+                    </select>
+                    <button @click="openCreateCampaignModal()" class="btn btn-outline-secondary btn-sm mt-2 w-full">
+                        <i class="fas fa-plus mr-1"></i>หรือ สร้าง Campaign ใหม่
+                    </button>
+                </div>
+                
+                <!-- Targeting -->
+                <div class="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
+                    <label class="block text-xs font-semibold text-purple-700 uppercase tracking-wide mb-2">
+                        <i class="fas fa-crosshairs mr-1"></i> เลือก Targeting
+                    </label>
+                    <select class="w-full bg-white border-2 border-purple-300 rounded-lg px-4 py-3 font-medium" x-model="abxTargetingId" @change="updateAbxAdgroupName()">
+                        <option value="">-- Select Targeting --</option>
+                        {% for tpl in targeting_templates %}
+                        <option value="{{ tpl.id }}" data-name="{{ tpl.name }}">{{ tpl.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Content Style -->
+                <div class="bg-indigo-50 rounded-xl p-4 border-2 border-indigo-200">
+                    <label class="block text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
+                        <i class="fas fa-tag mr-1"></i> Content Style
+                    </label>
+                    <select class="w-full bg-white border-2 border-indigo-300 rounded-lg px-4 py-3 font-medium" x-model="abxContentStyle" @change="updateAbxAdgroupName()">
+                        <option value="SALE">SALE</option>
+                        <option value="ECOM">ECOM</option>
+                        <option value="REVIEW">REVIEW</option>
+                        <option value="BRANDING">BRANDING</option>
+                    </select>
+                </div>
+                
+                <!-- AdGroup Name -->
+                <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                        <i class="fas fa-lock mr-1"></i> ชื่อ AdGroup (สร้างอัตโนมัติ)
+                    </label>
+                    <div class="font-mono text-gray-800 bg-white border border-gray-300 rounded-lg px-4 py-3 text-sm" x-text="newAbxAdgroupName"></div>
+                </div>
+                
+                <!-- Budget -->
+                <div class="bg-amber-50 rounded-xl p-4 border-2 border-amber-200">
+                    <label class="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">
+                        <i class="fas fa-coins mr-1"></i> Daily Budget
+                    </label>
+                    <div class="flex items-center gap-3">
+                        <input type="number" min="1" class="flex-1 bg-white border-2 border-amber-300 rounded-lg px-4 py-3 text-xl font-bold" x-model.number="abxBudget" />
+                        <span class="text-lg font-semibold text-amber-700">THB/วัน</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t">
+                <button class="px-5 py-2.5 rounded-lg border-2 border-gray-300 text-gray-600 font-medium hover:bg-gray-100" @click="showAbxAdgroupModal = false">ยกเลิก</button>
+                <button class="px-6 py-2.5 rounded-lg bg-gradient-to-r from-pink-500 to-rose-500 text-white font-semibold hover:from-pink-600 hover:to-rose-600 shadow-lg disabled:opacity-50" @click="createAbxAdgroup()" :disabled="creatingAbxAdgroup || !abxCampaignId || !abxTargetingId">
+                    <i class="fas fa-plus mr-2"></i>
+                    <span x-text="creatingAbxAdgroup ? 'กำลังสร้าง...' : 'สร้าง ABX AdGroup'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function adCreateApp() {
+    // Targeting templates data
+    const targetingTemplates = {
+        {% for tpl in targeting_templates %}
+        '{{ tpl.id }}': '{{ tpl.name }}',
+        {% endfor %}
+    };
+    
+    return {
+        // Form data
+        contentId: {{ content.id }},
+        products: '{{ products }}',
+        itemId: '{{ content.platform_post_id }}',
+        
+        objectiveCode: '',  // 'VV', 'RCH', 'TRF', 'CVN'
+        adType: '',  // 'ACE' or 'ABX'
+        advertiserId: '',
+        campaignId: '',
+        targetingId: '',
+        adgroupId: '',  // For ABX
+        adgroupName: '',
+        adName: '',
+        useLegacyNaming: true,  // Use legacy V1 naming format (for VV only)
+        
+        // State
+        currentStep: 1,
+        campaigns: [],
+        abxAdgroups: [],
+        loadingCampaigns: false,
+        loadingAdgroups: false,
+        creatingCampaign: false,
+        creatingAbxAdgroup: false,
+        creating: false,
+        matchingCampaign: null,
+        
+        // Modals
+        showCampaignModal: false,
+        showAbxAdgroupModal: false,
+        
+        // Campaign Modal
+        campaignBudgetMode: 'BUDGET_MODE_DAY',
+        campaignDailyBudget: 500,
+        
+        // ABX AdGroup Modal
+        abxCampaignId: '',
+        abxTargetingId: '',
+        abxContentStyle: 'SALE',
+        abxBudget: 500,
+        
+        // Toast
+        toast: { show: false, type: 'success', message: '' },
+        
+        // Computed
+        get hasProducts() {
+            return this.products && this.products.trim().length > 0;
+        },
+        
+        get hasPreferredTargeting() {
+            return {{ 'true' if has_preferred_targeting else 'false' }};
+        },
+        
+        get selectedCampaign() {
+            if (!this.campaignId) return null;
+            return this.campaigns.find(c => c.campaign_id === this.campaignId) || null;
+        },
+        
+        get selectedAdgroup() {
+            if (!this.adgroupId) return null;
+            return this.abxAdgroups.find(ag => ag.adgroup_id === this.adgroupId) || null;
+        },
+        
+        get isMatchingCampaign() {
+            if (!this.selectedCampaign || !this.products) return false;
+            const productParts = this.products.split(',').map(p => '[' + p.trim() + ']').join('');
+            return this.selectedCampaign.campaign_name.startsWith(productParts);
+        },
+        
+        get filteredCampaigns() {
+            // Filter campaigns by objective (case-insensitive)
+            if (!this.objectiveCode || !this.campaigns.length) return this.campaigns;
+            
+            // Legacy V1 format: Don't filter by objective - match by campaign name pattern instead
+            // V1 ACE: [Products]_ACEBOOSTX_Date
+            // V1 ABX: [Products]_ABX_ALLOCATE_ADGROUP
+            if (this.useLegacyNaming && this.objectiveCode === 'VV') {
+                // For legacy format, show all campaigns - let the name matching logic handle it
+                return this.campaigns;
+            }
+            
+            const tiktokObjective = this.objectiveCodeToTikTok(this.objectiveCode).toLowerCase();
+            return this.campaigns.filter(c => 
+                (c.objective_type || '').toLowerCase() === tiktokObjective
+            );
+        },
+        
+        get filteredAbxAdgroups() {
+            // Filter ABX adgroups that match naming pattern with objective
+            if (!this.objectiveCode || !this.abxAdgroups.length) return this.abxAdgroups;
+            
+            // Legacy V1 format: ABX adgroups don't have objective code in name
+            // V1: [Products]_ABX_(Targeting)_Style#Num
+            // V2: [Products]_ABX_VV_(Targeting)_Style#Num
+            if (this.useLegacyNaming && this.objectiveCode === 'VV') {
+                // For legacy format, just check for _ABX_ without objective code
+                return this.abxAdgroups.filter(ag => {
+                    const name = ag.adgroup_name || '';
+                    // Match V1 format: has _ABX_ but NOT followed by objective code like _VV_, _RCH_, etc.
+                    if (!name.includes('_ABX_')) return false;
+                    // Exclude V2 format (has objective code after _ABX_)
+                    if (/_ABX_(VV|RCH|TRF|CVN)_/.test(name)) return false;
+                    return true;
+                });
+            }
+            
+            return this.abxAdgroups.filter(ag => {
+                // Check if adgroup name contains _ABX_ and objective code
+                return ag.adgroup_name.includes('_ABX_') && ag.adgroup_name.includes('_' + this.objectiveCode + '_');
+            });
+        },
+        
+        // ABX Campaign computed properties
+        get abxFilteredCampaigns() {
+            // For ABX, show all campaigns (user can select any)
+            return this.campaigns;
+        },
+        
+        get abxSelectedCampaign() {
+            if (!this.abxCampaignId) return null;
+            return this.campaigns.find(c => c.campaign_id === this.abxCampaignId) || null;
+        },
+        
+        get expectedAbxCampaignName() {
+            if (!this.products) return '';
+            const productParts = this.products.split(',').map(p => '[' + p.trim() + ']').join('');
+            return productParts + '_ABX_ALLOCATE_ADGROUP';
+        },
+        
+        get abxMatchingCampaign() {
+            if (!this.products || !this.campaigns.length) return null;
+            const productParts = this.products.split(',').map(p => '[' + p.trim() + ']').join('');
+            const useLegacy = this.useLegacyNaming && this.objectiveCode === 'VV';
+            
+            // V1 ABX campaign pattern: [Products]_ABX_ALLOCATE_ADGROUP (exact match)
+            const abxCampaignNameV1 = productParts + '_ABX_ALLOCATE_ADGROUP';
+            // V2 pattern: [Products]_VV_BOOSTX
+            const abxCampaignNameV2 = productParts + '_' + this.objectiveCode + '_BOOSTX';
+            
+            return this.campaigns.find(c => {
+                const name = c.campaign_name || '';
+                // Match V1 ABX format (exact match for compatibility)
+                if (useLegacy && name === abxCampaignNameV1) return true;
+                // Match V2 format
+                if (name.startsWith(abxCampaignNameV2)) return true;
+                return false;
+            }) || null;
+        },
+        
+        get isAbxDefaultCampaign() {
+            if (!this.abxSelectedCampaign || !this.products) return false;
+            const productParts = this.products.split(',').map(p => '[' + p.trim() + ']').join('');
+            const defaultName = productParts + '_ABX_ALLOCATE_ADGROUP';
+            return this.abxSelectedCampaign.campaign_name === defaultName;
+        },
+        
+        get abxAdgroupsForCampaign() {
+            // ABX adgroups are filtered by campaign from API (via loadAbxAdgroups)
+            // Then apply product filter via filteredAbxAdgroups
+            if (!this.filteredAbxAdgroups.length || !this.products) return [];
+            
+            const productParts = this.products.split(',').map(p => '[' + p.trim() + ']').join('');
+            
+            return this.filteredAbxAdgroups.filter(ag => {
+                const name = ag.adgroup_name || '';
+                return name.startsWith(productParts);
+            });
+        },
+        
+        get canShowNames() {
+            if (this.adType === 'ACE') {
+                return this.advertiserId && this.campaignId && this.targetingId;
+            } else if (this.adType === 'ABX') {
+                return this.advertiserId && this.abxCampaignId && this.adgroupId;
+            }
+            return false;
+        },
+        
+        get canCreate() {
+            if (!this.hasProducts) return false;
+            if (this.adType === 'ACE') {
+                return this.advertiserId && this.campaignId && this.targetingId && this.adgroupName && this.adName;
+            } else if (this.adType === 'ABX') {
+                return this.advertiserId && this.abxCampaignId && this.adgroupId && this.adName;
+            }
+            return false;
+        },
+        
+        get newCampaignName() {
+            const dateStr = new Date().toISOString().split('T')[0];
+            if (!this.products || !this.objectiveCode) return '[Unknown]_VV_BOOSTX_' + dateStr;
+            
+            const parts = this.products.split(',').map(p => '[' + p.trim() + ']').join('');
+            
+            // Legacy V1 format (VV only): [Products]_ACEBOOSTX_Date
+            if (this.useLegacyNaming && this.objectiveCode === 'VV') {
+                return parts + '_ACEBOOSTX_' + dateStr;
+            }
+            // New V2 format: [Products]_<OBJ>_BOOSTX_Date
+            return parts + '_' + this.objectiveCode + '_BOOSTX_' + dateStr;
+        },
+        
+        get newAbxAdgroupName() {
+            if (!this.products || !this.objectiveCode) return '[Unknown]_ABX_VV_(T00)_SALE#01';
+            
+            const parts = this.products.split(',').map(p => '[' + p.trim() + ']').join('');
+            const targetingName = this.abxTargetingId ? (targetingTemplates[this.abxTargetingId] || 'T' + this.abxTargetingId) : 'T00';
+            
+            // Legacy V1 format (VV only): [Products]_ABX_(Targeting)_Style#Num
+            if (this.useLegacyNaming && this.objectiveCode === 'VV') {
+                return parts + '_ABX_(' + targetingName + ')_' + this.abxContentStyle + '#01';
+            }
+            // New V2 format: [Products]_ABX_<OBJ>_(Targeting)_Style#Num
+            return parts + '_ABX_' + this.objectiveCode + '_(' + targetingName + ')_' + this.abxContentStyle + '#01';
+        },
+        
+        init() {
+            // Check URL params for initial values
+            const urlParams = new URLSearchParams(window.location.search);
+            const adTypeParam = urlParams.get('ad_type');
+            if (adTypeParam === 'ace') {
+                this.objectiveCode = 'VV';
+                this.adType = 'ACE';
+                this.currentStep = 3;
+            } else if (adTypeParam === 'abx') {
+                this.objectiveCode = 'VV';
+                this.adType = 'ABX';
+                this.currentStep = 3;
+            }
+        },
+        
+        selectObjective(code) {
+            this.objectiveCode = code;
+            this.currentStep = 2;
+            // Reset downstream selections
+            this.adType = '';
+            this.campaignId = '';
+            this.targetingId = '';
+            this.adgroupId = '';
+            this.generateNames();
+        },
+        
+        selectType(type) {
+            this.adType = type;
+            this.currentStep = 3;
+            // Reset selections
+            this.campaignId = '';
+            this.targetingId = '';
+            this.adgroupId = '';
+            this.abxCampaignId = '';
+            this.abxTargetingId = '';
+            this.abxAdgroups = [];
+            this.generateNames();
+        },
+        
+        generateNames() {
+            if (!this.objectiveCode) return;
+            
+            const productParts = this.products ? this.products.split(',').map(p => '[' + p.trim() + ']').join('') : '[UNKN]';
+            const targetingName = this.targetingId ? (targetingTemplates[this.targetingId] || 'T' + this.targetingId) : 'T00';
+            const dateStr = new Date().toISOString().split('T')[0];
+            const useLegacy = this.useLegacyNaming && this.objectiveCode === 'VV';
+            
+            if (this.adType === 'ACE') {
+                if (useLegacy) {
+                    // Legacy V1 format
+                    // AdGroup: [Products]_ACE_<Targeting>_ItemId
+                    this.adgroupName = productParts + '_ACE_<' + targetingName + '>_' + this.itemId;
+                    // Ad: [Products]_ACE_<Targeting>_ItemId_Date
+                    this.adName = productParts + '_ACE_<' + targetingName + '>_' + this.itemId + '_' + dateStr;
+                } else {
+                    // New V2 format
+                    // AdGroup: [Products]_ACE_<OBJ>_(Targeting)#01
+                    this.adgroupName = productParts + '_ACE_' + this.objectiveCode + '_(' + targetingName + ')#01';
+                    // Ad: [Products]_ACE_<OBJ>_(Targeting)_ItemId
+                    this.adName = productParts + '_ACE_' + this.objectiveCode + '_(' + targetingName + ')_' + this.itemId;
+                }
+            } else if (this.adType === 'ABX') {
+                if (useLegacy) {
+                    // Legacy V1 format
+                    // Ad: [Products]_ABX_<Targeting>_ItemId_Date
+                    this.adName = productParts + '_ABX_<' + targetingName + '>_' + this.itemId + '_' + dateStr;
+                } else {
+                    // New V2 format
+                    // Ad: [Products]_ABX_<OBJ>_(Targeting)_ItemId
+                    this.adName = productParts + '_ABX_' + this.objectiveCode + '_(' + targetingName + ')_' + this.itemId;
+                }
+            }
+        },
+        
+        updateAbxAdgroupName() {
+            // Update name preview when targeting or style changes
+            this.$nextTick(() => {
+                // newAbxAdgroupName is a computed property, will update automatically
+            });
+        },
+        
+        objectiveCodeToTikTok(code) {
+            const map = {
+                'VV': 'VIDEO_VIEWS',
+                'RCH': 'REACH',
+                'TRF': 'TRAFFIC',
+                'CVN': 'CONVERSIONS',
+            };
+            return map[code] || 'VIDEO_VIEWS';
+        },
+        
+        async onAdvertiserChange() {
+            if (!this.advertiserId) {
+                this.campaigns = [];
+                this.abxAdgroups = [];
+                this.campaignId = '';
+                this.adgroupId = '';
+                return;
+            }
+            
+            this.currentStep = 4;
+            
+            // Load campaigns for both ACE and ABX
+            // For ABX: loadCampaigns() will auto-select campaign and call loadAbxAdgroups()
+            await this.loadCampaigns();
+        },
+        
+        async loadCampaigns() {
+            this.loadingCampaigns = true;
+            try {
+                const resp = await window.apiRequest(`/api/v1/ads/campaigns/${this.advertiserId}`);
+                if (!resp) return; // Redirected to login
+                
+                if (!resp.ok) {
+                    const errData = await resp.json().catch(() => ({}));
+                    throw new Error(errData.detail || `HTTP ${resp.status}`);
+                }
+                
+                const data = await resp.json();
+                this.campaigns = data.data?.list || [];
+                
+                const productParts = this.products ? this.products.split(',').map(p => '[' + p.trim() + ']').join('') : '';
+                const useLegacy = this.useLegacyNaming && this.objectiveCode === 'VV';
+                
+                // Find matching campaign for ACE
+                if (this.adType === 'ACE' && this.objectiveCode) {
+                    // Try V2 naming first: [Products]_VV_BOOSTX
+                    const targetNameV2 = productParts + '_' + this.objectiveCode + '_BOOSTX';
+                    // Try Legacy V1 naming: [Products]_ACEBOOSTX (for VV only)
+                    // Note: Legacy format does NOT include date in matching - only [Products]_ACEBOOSTX
+                    const targetNameV1 = productParts + '_ACEBOOSTX';
+                    
+                    this.matchingCampaign = this.filteredCampaigns.find(c => {
+                        const name = c.campaign_name || '';
+                        // Match V2 format
+                        if (name.startsWith(targetNameV2)) return true;
+                        // Match V1 Legacy format (VV only) - check starts with [Products]_ACEBOOSTX
+                        if (useLegacy && name.startsWith(targetNameV1)) return true;
+                        return false;
+                    });
+                    
+                    if (this.matchingCampaign) {
+                        this.campaignId = this.matchingCampaign.campaign_id;
+                    }
+                }
+                
+                // Find matching campaign for ABX (when creating new adgroup)
+                if (this.adType === 'ABX' && productParts) {
+                    // V1 ABX campaign pattern: [Products]_ABX_ALLOCATE_ADGROUP (exact match)
+                    const abxCampaignNameV1 = productParts + '_ABX_ALLOCATE_ADGROUP';
+                    // V2 ABX campaign pattern: [Products]_VV_BOOSTX (same as ACE)
+                    const abxCampaignNameV2 = productParts + '_' + this.objectiveCode + '_BOOSTX';
+                    
+                    const abxCampaign = this.campaigns.find(c => {
+                        const name = c.campaign_name || '';
+                        // Match V1 ABX format (exact match for compatibility)
+                        if (useLegacy && name === abxCampaignNameV1) return true;
+                        // Match V2 format
+                        if (name.startsWith(abxCampaignNameV2)) return true;
+                        return false;
+                    });
+                    
+                    if (abxCampaign) {
+                        this.abxCampaignId = abxCampaign.campaign_id;
+                        // Auto-load adgroups after auto-selecting campaign
+                        await this.loadAbxAdgroups();
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading campaigns:', e);
+                this.showToast('โหลด Campaign ไม่สำเร็จ', 'error');
+            } finally {
+                this.loadingCampaigns = false;
+            }
+        },
+        
+        async loadAbxAdgroups() {
+            this.loadingAdgroups = true;
+            try {
+                // Load adgroups filtered by campaign_id if available
+                let url = `/api/v1/ads/adgroups/${this.advertiserId}`;
+                if (this.abxCampaignId) {
+                    url += `?campaign_id=${this.abxCampaignId}`;
+                }
+                
+                const resp = await window.apiRequest(url);
+                if (!resp) return; // Redirected to login
+                
+                if (!resp.ok) {
+                    const errData = await resp.json().catch(() => ({}));
+                    throw new Error(errData.detail || `HTTP ${resp.status}`);
+                }
+                
+                const data = await resp.json();
+                this.abxAdgroups = data.data?.list || [];
+                
+                console.log('Loaded ABX adgroups:', this.abxAdgroups.length, 'for campaign:', this.abxCampaignId);
+            } catch (e) {
+                console.error('Error loading ABX adgroups:', e);
+                this.showToast('โหลด ABX AdGroup ไม่สำเร็จ', 'error');
+            } finally {
+                this.loadingAdgroups = false;
+            }
+        },
+        
+        onCampaignChange() {
+            if (this.campaignId) {
+                this.currentStep = 5;
+            }
+        },
+        
+        onAdgroupChange() {
+            if (this.adgroupId) {
+                this.currentStep = 6;
+                this.generateNames();
+            }
+        },
+        
+        async onAbxCampaignChange() {
+            // Reset adgroup and targeting selection when campaign changes
+            this.adgroupId = '';
+            this.abxTargetingId = '';
+            
+            if (this.abxCampaignId) {
+                this.currentStep = 5;
+                // Reload adgroups for this campaign
+                await this.loadAbxAdgroups();
+            }
+        },
+        
+        onAbxTargetingChange() {
+            // Reset adgroup selection when targeting changes
+            this.adgroupId = '';
+            if (this.abxTargetingId) {
+                // Auto-select first matching adgroup for this targeting if available
+                const matchingAdgroup = this.abxAdgroupsForTargeting[0];
+                if (matchingAdgroup) {
+                    this.adgroupId = matchingAdgroup.adgroup_id;
+                    this.generateNames();
+                }
+            }
+        },
+        
+        onTargetingChange() {
+            this.generateNames();
+            if (this.targetingId) {
+                this.currentStep = 6;
+            }
+        },
+        
+        openCreateCampaignModal() {
+            this.showCampaignModal = true;
+        },
+        
+        openCreateAbxAdgroupModal() {
+            this.showAbxAdgroupModal = true;
+            this.abxCampaignId = this.campaignId || '';
+        },
+        
+        async createCampaign() {
+            this.creatingCampaign = true;
+            try {
+                const resp = await window.apiRequest('/api/v1/ads/campaigns/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        advertiser_id: this.advertiserId,
+                        campaign_name: this.newCampaignName,
+                        objective_type: this.objectiveCodeToTikTok(this.objectiveCode),
+                        budget_mode: this.campaignBudgetMode,
+                        daily_budget: this.campaignBudgetMode === 'BUDGET_MODE_DAY' ? Number(this.campaignDailyBudget) : null,
+                    })
+                });
+                if (!resp) return; // Redirected to login
+                
+                const data = await resp.json();
+                
+                if (data.data?.success) {
+                    this.showToast('สร้าง Campaign สำเร็จ!', 'success');
+                    this.showCampaignModal = false;
+                    await this.loadCampaigns();
+                    
+                    // Select the new campaign
+                    if (data.data?.campaign_id) {
+                        this.campaignId = data.data.campaign_id;
+                    }
+                } else {
+                    this.showToast(data.data?.message || 'สร้าง Campaign ไม่สำเร็จ', 'error');
+                }
+            } catch (e) {
+                console.error('Error creating campaign:', e);
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.creatingCampaign = false;
+            }
+        },
+        
+        async createAbxAdgroup() {
+            this.creatingAbxAdgroup = true;
+            try {
+                const resp = await window.apiRequest('/api/v1/ads/adgroups/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        advertiser_id: this.advertiserId,
+                        campaign_id: this.abxCampaignId,
+                        adgroup_name: this.newAbxAdgroupName,
+                        targeting_id: this.abxTargetingId,
+                        budget: this.abxBudget,
+                        structure: 'ABX',
+                        objective_code: this.objectiveCode,
+                    })
+                });
+                if (!resp) return; // Redirected to login
+                
+                const data = await resp.json();
+                
+                if (data.data?.success) {
+                    this.showToast('สร้าง ABX AdGroup สำเร็จ!', 'success');
+                    this.showAbxAdgroupModal = false;
+                    await this.loadAbxAdgroups();
+                    
+                    // Select the new adgroup
+                    if (data.data?.adgroup_id) {
+                        this.adgroupId = data.data.adgroup_id;
+                    }
+                } else {
+                    this.showToast(data.data?.message || 'สร้าง ABX AdGroup ไม่สำเร็จ', 'error');
+                }
+            } catch (e) {
+                console.error('Error creating ABX adgroup:', e);
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.creatingAbxAdgroup = false;
+            }
+        },
+        
+        async createAd() {
+            if (!this.canCreate) return;
+            
+            this.creating = true;
+            try {
+                let endpoint, payload;
+                
+                if (this.adType === 'ACE') {
+                    endpoint = '/api/v1/ads/ace/create';
+                    const selectedCampaign = this.campaigns.find(c => c.campaign_id === this.campaignId);
+                    payload = {
+                        advertiser_id: this.advertiserId,
+                        campaign_id: this.campaignId,
+                        campaign_name: selectedCampaign?.campaign_name || '',
+                        targeting_id: this.targetingId || null,
+                        content_id: this.contentId,
+                        adgroup_name: this.adgroupName,
+                        ad_name: this.adName,
+                        objective_code: this.objectiveCode,
+                        use_legacy_naming: this.useLegacyNaming && this.objectiveCode === 'VV',
+                    };
+                } else {
+                    endpoint = '/api/v1/ads/abx/create';
+                    payload = {
+                        advertiser_id: this.advertiserId,
+                        adgroup_id: this.adgroupId,
+                        content_id: this.contentId,
+                        ad_name: this.adName,
+                        objective_code: this.objectiveCode,
+                        use_legacy_naming: this.useLegacyNaming && this.objectiveCode === 'VV',
+                    };
+                }
+                
+                const resp = await window.apiRequest(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!resp) return; // Redirected to login
+                
+                const data = await resp.json();
+                
+                if (data.data?.success) {
+                    this.showToast(`สร้าง ${this.adType} Ad สำเร็จ!`, 'success');
+                    setTimeout(() => {
+                        window.location.href = '/master/contents/tiktok';
+                    }, 2000);
+                } else {
+                    this.showToast(data.data?.message || 'สร้าง Ad ไม่สำเร็จ', 'error');
+                }
+            } catch (e) {
+                console.error('Error creating ad:', e);
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.creating = false;
+            }
+        },
+        
+        getSubmitText() {
+            if (this.creating) return 'กำลังสร้าง...';
+            if (this.adType === 'ACE') return 'สร้าง ACE AdGroup & Ad';
+            if (this.adType === 'ABX') return 'เพิ่ม Ad เข้า ABX AdGroup';
+            return 'สร้างโฆษณา';
+        },
+        
+        getObjectiveIcon(code) {
+            const icons = {
+                'VV': '🎬',
+                'RCH': '📢',
+                'TRF': '🔗',
+                'CVN': '🎯',
+            };
+            return icons[code] || '🎯';
+        },
+        
+        getObjectiveIconClass(code) {
+            const icons = {
+                'VV': 'fas fa-play-circle',
+                'RCH': 'fas fa-users',
+                'TRF': 'fas fa-external-link-alt',
+                'CVN': 'fas fa-bullseye',
+            };
+            return icons[code] || 'fas fa-flag';
+        },
+        
+        getObjectiveLabelFull(objective) {
+            const labels = {
+                'VIDEO_VIEWS': 'Video Views',
+                'REACH': 'Reach',
+                'TRAFFIC': 'Traffic',
+                'CONVERSIONS': 'Conversions',
+            };
+            return labels[objective] || objective || 'Unknown';
+        },
+        
+        getObjectiveColorClass(objective) {
+            const colors = {
+                'VIDEO_VIEWS': 'text-purple-600',
+                'REACH': 'text-blue-600',
+                'TRAFFIC': 'text-green-600',
+                'CONVERSIONS': 'text-orange-600',
+            };
+            return colors[objective] || 'text-gray-600';
+        },
+        
+        extractTargetingFromName(adgroupName) {
+            // Extract targeting from ABX adgroup name
+            // V1 format: [Products]_ABX_(Targeting)_Style#Num
+            // V2 format: [Products]_ABX_VV_(Targeting)_Style#Num
+            if (!adgroupName) return 'N/A';
+            
+            // Try to match (Targeting) pattern
+            const match = adgroupName.match(/_\(([^)]+)\)_/);
+            if (match && match[1]) {
+                return match[1];
+            }
+            
+            // Try to match <Targeting> pattern (legacy)
+            const legacyMatch = adgroupName.match(/_<([^>]+)>_/);
+            if (legacyMatch && legacyMatch[1]) {
+                return legacyMatch[1];
+            }
+            
+            return 'N/A';
+        },
+        
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => { this.toast.show = false; }, 4000);
+        }
+    };
+}
+</script>
+{% endblock %}

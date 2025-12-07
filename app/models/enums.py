@@ -123,3 +123,78 @@ class AllocationType(str, enum.Enum):
     ABX = "abx"     # Adgroup-based allocation
     MANUAL = "manual"  # Manual allocation
 
+
+class AdGroupStructure(str, enum.Enum):
+    """
+    โครงสร้างความสัมพันธ์ระหว่าง AdGroup กับ Content
+    - SINGLE_CONTENT: 1 adgroup / 1 content (ACE-style หรือแคมเปญที่ยิงคลิปเดียวชัดเจน)
+    - MULTI_CONTENT: 1 adgroup / หลาย content (ABX-style หรือกลุ่มทดสอบหลายคลิป)
+    - UNKNOWN: adgroup ที่ระบบยังไม่จัดประเภท (manual หรือดึงมาจากนอก)
+    """
+    SINGLE_CONTENT = "single_content"
+    MULTI_CONTENT = "multi_content"
+    UNKNOWN = "unknown"
+
+
+class ObjectiveCode(str, enum.Enum):
+    """
+    Shortcode สำหรับ Campaign Objective ใช้ใน naming pattern
+    
+    Naming Pattern:
+    - Campaign: [Products]_<OBJ>_BOOSTX_<Date>
+    - AdGroup:  [Products]_<STRUCT>_<OBJ>_(Targeting)_<Style>#<Num>
+    - Ad:       [Products]_<STRUCT>_<OBJ>_(Targeting)_<ItemID>
+    
+    ตัวอย่าง:
+    - [J3]_VV_BOOSTX_2025-12-05
+    - [J3]_ABX_VV_(F_RETAIL_18_54)_SALE#01
+    """
+    VV = "VV"       # Video Views (หลัก)
+    RCH = "RCH"     # Reach - ขยายฐานผู้ชม
+    TRF = "TRF"     # Traffic - พาเข้าเว็บ/ร้าน
+    CVN = "CVN"     # Conversions - ขาย (ต้องมี Pixel)
+    APP = "APP"     # App Install
+    LED = "LED"     # Lead Generation
+
+
+class StructureCode(str, enum.Enum):
+    """
+    Shortcode สำหรับ AdGroup Structure ใช้ใน naming pattern
+    """
+    ACE = "ACE"     # 1 AdGroup : 1 Content
+    ABX = "ABX"     # 1 AdGroup : N Contents
+
+
+# Mapping: ObjectiveCode -> TikTok API objective_type
+OBJECTIVE_CODE_TO_TIKTOK = {
+    ObjectiveCode.VV: "VIDEO_VIEWS",
+    ObjectiveCode.RCH: "REACH",
+    ObjectiveCode.TRF: "TRAFFIC",
+    ObjectiveCode.CVN: "CONVERSIONS",
+    ObjectiveCode.APP: "APP_INSTALL",
+    ObjectiveCode.LED: "LEAD_GENERATION",
+}
+
+# Mapping: ObjectiveCode -> optimization_goal
+OBJECTIVE_CODE_TO_OPTIMIZATION = {
+    ObjectiveCode.VV: "VIDEO_VIEW",
+    ObjectiveCode.RCH: "REACH",
+    ObjectiveCode.TRF: "CLICK",
+    ObjectiveCode.CVN: "CONVERSION",
+    ObjectiveCode.APP: "APP_INSTALL",
+    ObjectiveCode.LED: "LEAD",
+}
+
+# Mapping: ObjectiveCode -> billing_event
+OBJECTIVE_CODE_TO_BILLING = {
+    ObjectiveCode.VV: "CPV",
+    ObjectiveCode.RCH: "CPM",
+    ObjectiveCode.TRF: "CPC",
+    ObjectiveCode.CVN: "OCPM",
+    ObjectiveCode.APP: "OCPM",
+    ObjectiveCode.LED: "OCPM",
+}
+
+# Mapping: TikTok API objective_type -> ObjectiveCode
+TIKTOK_TO_OBJECTIVE_CODE = {v: k for k, v in OBJECTIVE_CODE_TO_TIKTOK.items()}
+

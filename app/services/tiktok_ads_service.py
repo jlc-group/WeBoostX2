@@ -635,6 +635,7 @@ class TikTokAdsService:
                 if not adgroup:
                     adgroup = AdGroup(
                         platform=PlatformEnum.TIKTOK,
+                        ad_account_id=ad_account.id,
                         campaign_id=campaign.id,
                         external_adgroup_id=adgroup_id,
                         name=_truncate(
@@ -648,6 +649,9 @@ class TikTokAdsService:
                 else:
                     if ad_data.get("adgroup_name"):
                         adgroup.name = _truncate(ad_data["adgroup_name"])
+                    # Update ad_account_id if not set
+                    if not adgroup.ad_account_id:
+                        adgroup.ad_account_id = ad_account.id
                 
                 # Update adgroup optimization_goal if available
                 opt_goal_raw = ad_data.get("optimization_goal")
@@ -671,6 +675,7 @@ class TikTokAdsService:
             if not ad:
                 ad = Ad(
                     platform=PlatformEnum.TIKTOK,
+                    ad_account_id=ad_account.id,
                     ad_group_id=adgroup.id,
                     external_ad_id=ad_id,
                     name=_truncate(ad_data.get("ad_name") or f"Ad {ad_id}"),
@@ -679,6 +684,9 @@ class TikTokAdsService:
             else:
                 if ad_data.get("ad_name"):
                     ad.name = _truncate(ad_data["ad_name"])
+                # Update ad_account_id if not set
+                if not ad.ad_account_id:
+                    ad.ad_account_id = ad_account.id
 
             # map status
             operation_status = ad_data.get("operation_status")
@@ -975,6 +983,160 @@ class TikTokAdsService:
                 print(f"[TikTokAdsService] fetch_adgroup_details exception: {e}")
         
         return adgroup_map
+
+    @classmethod
+    def fetch_ad_details_batch(cls, advertiser_id: str, ad_ids: List[str]) -> Dict[str, Dict]:
+        """
+        ดึงรายละเอียด Ad เฉพาะ ad_ids ที่ระบุ (real-time)
+        
+        Args:
+            advertiser_id: TikTok advertiser ID
+            ad_ids: List of ad IDs to fetch
+            
+        Returns:
+            Dict[ad_id, {ad_name, campaign_name, adgroup_name, operation_status, etc.}]
+        """
+        if not ad_ids:
+            return {}
+            
+        token = cls._get_access_token()
+        if not token:
+            print("[TikTokAdsService] Missing access token, skip fetch_ad_details_batch")
+            return {}
+        
+        ad_map: Dict[str, Dict] = {}
+        
+        with cls._get_client() as client:
+            url = f"{cls.BASE_URL}/ad/get/"
+            
+            # TikTok API limits to 100 ad_ids per request
+            for i in range(0, len(ad_ids), 100):
+                chunk = ad_ids[i:i + 100]
+                
+                params = {
+                    "advertiser_id": advertiser_id,
+                    "filtering": json.dumps({"ad_ids": chunk}),
+                    "fields": json.dumps([
+                        "ad_id", "ad_name", "campaign_id", "campaign_name", 
+                        "adgroup_id", "adgroup_name", "operation_status", 
+                        "secondary_status", "display_name", "create_time", 
+                        "modify_time", "tiktok_item_id"
+                    ]),
+                }
+                
+                try:
+                    resp = client.get(
+                        url,
+                        headers={"Access-Token": token},
+                        params=params,
+                    )
+                    
+                    if resp.status_code != 200:
+                        print(f"[TikTokAdsService] fetch_ad_details_batch error {resp.status_code}")
+                        continue
+                    
+                    data = resp.json()
+                    if data.get("code") != 0:
+                        print(f"[TikTokAdsService] fetch_ad_details_batch API error: {data.get('message')}")
+                        continue
+                    
+                    ads = data.get("data", {}).get("list", [])
+                    
+                    for ad in ads:
+                        ad_id = ad.get("ad_id")
+                        if ad_id:
+                            ad_map[ad_id] = {
+                                'ad_name': ad.get('ad_name'),
+                                'campaign_id': ad.get('campaign_id'),
+                                'campaign_name': ad.get('campaign_name'),
+                                'adgroup_id': ad.get('adgroup_id'),
+                                'adgroup_name': ad.get('adgroup_name'),
+                                'operation_status': ad.get('operation_status'),
+                                'secondary_status': ad.get('secondary_status'),
+                                'display_name': ad.get('display_name'),
+                                'create_time': ad.get('create_time'),
+                                'modify_time': ad.get('modify_time'),
+                                'tiktok_item_id': ad.get('tiktok_item_id'),
+                            }
+                    
+                except Exception as e:
+                    print(f"[TikTokAdsService] fetch_ad_details_batch exception: {e}")
+            
+            print(f"[TikTokAdsService] Fetched ad details for {len(ad_map)}/{len(ad_ids)} ads")
+        
+        return ad_map
+
+    @classmethod
+    def fetch_lifetime_spend_by_advertiser(cls, advertiser_id: str) -> Dict[str, float]:
+        """
+        ดึง Lifetime Spend ของทุก Ad จาก TikTok Report API
+        (query_lifetime=True ดึง spend ตั้งแต่เริ่มต้น)
+        
+        NOTE: ใช้ requests แทน httpx เพราะ httpx มีปัญหากับ TikTok API
+        
+        Returns:
+            Dict[ad_id, total_spend] - mapping ของ ad_id และ total spend
+        """
+        import requests
+        
+        token = cls._get_access_token()
+        if not token:
+            print("[TikTokAdsService] Missing access token, skip fetch_lifetime_spend_by_advertiser")
+            return {}
+        
+        ad_spend_map: Dict[str, float] = {}
+        url = f"{cls.BASE_URL}/report/integrated/get/"
+        headers = {"Access-Token": token}
+        page = 1
+        
+        while True:
+            params = {
+                "advertiser_id": advertiser_id,
+                "report_type": "BASIC",
+                "data_level": "AUCTION_AD",
+                "dimensions": json.dumps(["ad_id"]),
+                "metrics": json.dumps(["spend"]),
+                "query_lifetime": True,
+                "page_size": 1000,
+                "page": page,
+            }
+            
+            try:
+                resp = requests.get(url, headers=headers, params=params, timeout=30)
+                
+                if resp.status_code != 200:
+                    print(f"[TikTokAdsService] fetch_lifetime_spend_by_advertiser error {resp.status_code}")
+                    break
+                
+                data = resp.json()
+                if data.get("code") != 0:
+                    print(f"[TikTokAdsService] fetch_lifetime_spend_by_advertiser API error: {data.get('message')}")
+                    break
+                
+                items = data.get("data", {}).get("list", [])
+                
+                for item in items:
+                    dims = item.get("dimensions", {})
+                    metrics = item.get("metrics", {})
+                    ad_id = dims.get("ad_id")
+                    if ad_id:
+                        # Always store as string for consistent lookup
+                        ad_id_str = str(ad_id)
+                        spend = float(metrics.get("spend") or 0)
+                        ad_spend_map[ad_id_str] = spend
+                
+                # Check if there are more pages
+                if len(items) < 1000:
+                    break
+                page += 1
+                
+            except Exception as e:
+                print(f"[TikTokAdsService] fetch_lifetime_spend_by_advertiser exception: {e}")
+                break
+        
+        print(f"[TikTokAdsService] Fetched lifetime spend for {len(ad_spend_map)} ads from advertiser {advertiser_id}")
+        
+        return ad_spend_map
 
     @classmethod
     def fetch_lifetime_spend(cls, advertiser_id: str) -> Dict[str, float]:
@@ -1320,4 +1482,439 @@ class TikTokAdsService:
                 results["success"] = False
         
         return results
+
+    # ============================================
+    # Ad Creation Methods (POST to TikTok API)
+    # ============================================
+    
+    @classmethod
+    def create_campaign(
+        cls,
+        advertiser_id: str,
+        campaign_name: str,
+        objective_type: str = "VIDEO_VIEWS",
+        budget_mode: str = "BUDGET_MODE_DAY",
+        daily_budget: Optional[float] = 500.0,
+    ) -> Dict:
+        """
+        สร้าง Campaign ใหม่บน TikTok
+        
+        Args:
+            advertiser_id: TikTok advertiser ID
+            campaign_name: ชื่อ campaign
+            objective_type: VIDEO_VIEWS, REACH, TRAFFIC, CONVERSIONS etc.
+            budget_mode: BUDGET_MODE_INFINITE (unlimited) or BUDGET_MODE_DAY (daily budget)
+            
+        Returns:
+            Dict with success, campaign_id, campaign_name, message
+        """
+        token = cls._get_access_token()
+        if not token:
+            return {"success": False, "message": "Missing access token"}
+        
+        url = f"{cls.BASE_URL}/campaign/create/"
+        
+        payload = {
+            "advertiser_id": advertiser_id,
+            "campaign_name": campaign_name,
+            "objective_type": objective_type,
+            "budget_mode": budget_mode,
+        }
+        
+        if budget_mode == "BUDGET_MODE_DAY" and daily_budget:
+            payload["budget"] = daily_budget
+        
+        with cls._get_client() as client:
+            try:
+                resp = client.post(
+                    url,
+                    headers={
+                        "Access-Token": token,
+                        "Content-Type": "application/json"
+                    },
+                    json=payload
+                )
+                
+                data = resp.json()
+                
+                if resp.status_code == 200 and data.get("code") == 0:
+                    campaign_id = data.get("data", {}).get("campaign_id")
+                    print(f"[TikTokAdsService] Created campaign {campaign_id}: {campaign_name}")
+                    return {
+                        "success": True,
+                        "campaign_id": campaign_id,
+                        "campaign_name": campaign_name,
+                        "message": "Campaign created successfully"
+                    }
+                else:
+                    error_msg = data.get("message", "Unknown error")
+                    print(f"[TikTokAdsService] Failed to create campaign: {error_msg}")
+                    return {
+                        "success": False,
+                        "message": error_msg
+                    }
+                    
+            except Exception as e:
+                print(f"[TikTokAdsService] Exception creating campaign: {e}")
+                return {
+                    "success": False,
+                    "message": str(e)
+                }
+    
+    @classmethod
+    def get_identity_id(cls, advertiser_id: str, tiktok_item_id: str) -> Optional[str]:
+        """
+        ดึง identity_id จาก TikTok สำหรับ Spark Ads
+        
+        Spark Ads ต้องการ identity_id เพื่อระบุตัวตนของ content creator
+        """
+        token = cls._get_access_token()
+        if not token:
+            return None
+        
+        url = f"{cls.BASE_URL}/identity/get/"
+        
+        with cls._get_client() as client:
+            try:
+                params = {
+                    "advertiser_id": advertiser_id,
+                    "identity_type": "TT_USER",
+                }
+                
+                resp = client.get(
+                    url,
+                    headers={"Access-Token": token},
+                    params=params,
+                )
+                
+                if resp.status_code != 200:
+                    print(f"[TikTokAdsService] get_identity_id error {resp.status_code}")
+                    return None
+                
+                data = resp.json()
+                if data.get("code") != 0:
+                    print(f"[TikTokAdsService] get_identity_id API error: {data.get('message')}")
+                    return None
+                
+                identities = data.get("data", {}).get("identity_list", [])
+                if identities:
+                    return identities[0].get("identity_id")
+                
+                return None
+                
+            except Exception as e:
+                print(f"[TikTokAdsService] get_identity_id exception: {e}")
+                return None
+    
+    @classmethod
+    def create_ace_adgroup_and_ad(
+        cls,
+        advertiser_id: str,
+        campaign_id: str,
+        tiktok_item_id: str,
+        adgroup_name: str,
+        ad_name: str,
+        targeting: Optional[Dict] = None,
+        budget: float = 200.0,
+        optimization_goal: str = "VIDEO_VIEW",
+        identity_id: Optional[str] = None,
+        identity_type: str = "TT_USER",
+    ) -> Dict:
+        """
+        สร้าง ACE AdGroup และ Ad (1 adgroup = 1 content)
+        
+        Args:
+            advertiser_id: TikTok advertiser ID
+            campaign_id: Campaign ID ที่จะสร้าง adgroup ใต้
+            tiktok_item_id: TikTok item ID (post ID)
+            adgroup_name: ชื่อ adgroup
+            ad_name: ชื่อ ad
+            targeting: Targeting settings (optional)
+            budget: Daily budget (default 200 THB)
+            optimization_goal: VIDEO_VIEW, REACH, CLICK etc.
+            
+        Returns:
+            Dict with success, adgroup_id, ad_id, message
+        """
+        token = cls._get_access_token()
+        if not token:
+            return {"success": False, "message": "Missing access token"}
+        
+        # Step 1: Create AdGroup
+        adgroup_url = f"{cls.BASE_URL}/adgroup/create/"
+        
+        # Default targeting (Thailand, all genders, 18-55)
+        default_targeting = {
+            "location_ids": ["1012"],  # Thailand
+            "gender": "GENDER_UNLIMITED",
+            "age_groups": ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54"],
+        }
+        
+        targeting_settings = targeting or default_targeting
+        
+        adgroup_payload = {
+            "advertiser_id": advertiser_id,
+            "campaign_id": campaign_id,
+            "adgroup_name": adgroup_name,
+            "promotion_type": "SPARK_ADS",
+            "placement_type": "PLACEMENT_TYPE_AUTOMATIC",
+            "budget_mode": "BUDGET_MODE_DAY",
+            "budget": budget,
+            "schedule_type": "SCHEDULE_START_END",
+            "schedule_start_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "optimization_goal": optimization_goal,
+            "bid_type": "BID_TYPE_NO_BID",
+            "billing_event": "CPV",
+            "pacing": "PACING_MODE_SMOOTH",
+            **targeting_settings,
+        }
+        
+        with cls._get_client() as client:
+            try:
+                # Create AdGroup
+                resp = client.post(
+                    adgroup_url,
+                    headers={
+                        "Access-Token": token,
+                        "Content-Type": "application/json"
+                    },
+                    json=adgroup_payload
+                )
+                
+                data = resp.json()
+                
+                if resp.status_code != 200 or data.get("code") != 0:
+                    error_msg = data.get("message", "Failed to create adgroup")
+                    print(f"[TikTokAdsService] Failed to create adgroup: {error_msg}")
+                    return {"success": False, "message": error_msg}
+                
+                adgroup_id = data.get("data", {}).get("adgroup_id")
+                print(f"[TikTokAdsService] Created adgroup {adgroup_id}: {adgroup_name}")
+                
+                # Step 2: Create Ad
+                ad_result = cls._create_spark_ad(
+                    client,
+                    token,
+                    advertiser_id,
+                    adgroup_id,
+                    tiktok_item_id,
+                    ad_name,
+                    identity_id=identity_id,
+                    identity_type=identity_type,
+                )
+                
+                if not ad_result.get("success"):
+                    return {
+                        "success": False,
+                        "adgroup_id": adgroup_id,
+                        "message": ad_result.get("message", "Failed to create ad")
+                    }
+                
+                return {
+                    "success": True,
+                    "adgroup_id": adgroup_id,
+                    "ad_id": ad_result.get("ad_id"),
+                    "message": "ACE AdGroup and Ad created successfully"
+                }
+                
+            except Exception as e:
+                print(f"[TikTokAdsService] Exception creating ACE adgroup/ad: {e}")
+                return {"success": False, "message": str(e)}
+    
+    @classmethod
+    def create_adgroup(
+        cls,
+        advertiser_id: str,
+        campaign_id: str,
+        adgroup_name: str,
+        targeting: Optional[Dict] = None,
+        budget: float = 500.0,
+        optimization_goal: str = "VIDEO_VIEW",
+    ) -> Dict:
+        """
+        สร้าง AdGroup ใหม่บน TikTok (สำหรับ ABX หรือ ACE)
+        
+        Args:
+            advertiser_id: TikTok advertiser ID
+            campaign_id: Campaign ID ที่จะสร้าง adgroup ใต้
+            adgroup_name: ชื่อ adgroup
+            targeting: Targeting settings (optional)
+            budget: Daily budget (default 500 THB)
+            optimization_goal: VIDEO_VIEW, REACH, CLICK etc.
+            
+        Returns:
+            Dict with success, adgroup_id, message
+        """
+        token = cls._get_access_token()
+        if not token:
+            return {"success": False, "message": "Missing access token"}
+        
+        adgroup_url = f"{cls.BASE_URL}/adgroup/create/"
+        
+        # Default targeting (Thailand, all genders, 18-55)
+        default_targeting = {
+            "location_ids": ["1012"],  # Thailand
+            "gender": "GENDER_UNLIMITED",
+            "age_groups": ["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54"],
+        }
+        
+        targeting_settings = targeting or default_targeting
+        
+        adgroup_payload = {
+            "advertiser_id": advertiser_id,
+            "campaign_id": campaign_id,
+            "adgroup_name": adgroup_name,
+            "promotion_type": "SPARK_ADS",
+            "placement_type": "PLACEMENT_TYPE_AUTOMATIC",
+            "budget_mode": "BUDGET_MODE_DAY",
+            "budget": budget,
+            "schedule_type": "SCHEDULE_START_END",
+            "schedule_start_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "optimization_goal": optimization_goal,
+            "bid_type": "BID_TYPE_NO_BID",
+            "billing_event": "CPV",
+            "pacing": "PACING_MODE_SMOOTH",
+            **targeting_settings,
+        }
+        
+        with cls._get_client() as client:
+            try:
+                resp = client.post(
+                    adgroup_url,
+                    headers={
+                        "Access-Token": token,
+                        "Content-Type": "application/json"
+                    },
+                    json=adgroup_payload
+                )
+                
+                data = resp.json()
+                
+                if resp.status_code == 200 and data.get("code") == 0:
+                    adgroup_id = data.get("data", {}).get("adgroup_id")
+                    print(f"[TikTokAdsService] Created adgroup {adgroup_id}: {adgroup_name}")
+                    return {
+                        "success": True,
+                        "adgroup_id": adgroup_id,
+                        "message": "AdGroup created successfully"
+                    }
+                else:
+                    error_msg = data.get("message", "Failed to create adgroup")
+                    print(f"[TikTokAdsService] Failed to create adgroup: {error_msg}")
+                    return {"success": False, "message": error_msg}
+                    
+            except Exception as e:
+                print(f"[TikTokAdsService] Exception creating adgroup: {e}")
+                return {"success": False, "message": str(e)}
+    
+    @classmethod
+    def create_abx_ad(
+        cls,
+        advertiser_id: str,
+        adgroup_id: str,
+        tiktok_item_id: str,
+        ad_name: str,
+        identity_id: Optional[str] = None,
+        identity_type: str = "TT_USER",
+    ) -> Dict:
+        """
+        สร้าง ABX Ad (เพิ่ม content เข้า adgroup ที่มีอยู่แล้ว)
+        
+        Args:
+            advertiser_id: TikTok advertiser ID
+            adgroup_id: AdGroup ID ที่จะเพิ่ม ad เข้าไป
+            tiktok_item_id: TikTok item ID (post ID)
+            ad_name: ชื่อ ad
+            
+        Returns:
+            Dict with success, ad_id, message
+        """
+        token = cls._get_access_token()
+        if not token:
+            return {"success": False, "message": "Missing access token"}
+        
+        with cls._get_client() as client:
+            result = cls._create_spark_ad(
+                client,
+                token,
+                advertiser_id,
+                adgroup_id,
+                tiktok_item_id,
+                ad_name,
+                identity_id=identity_id,
+                identity_type=identity_type,
+            )
+            
+            return result
+    
+    @classmethod
+    def _create_spark_ad(
+        cls,
+        client: httpx.Client,
+        token: str,
+        advertiser_id: str,
+        adgroup_id: str,
+        tiktok_item_id: str,
+        ad_name: str,
+        identity_id: Optional[str] = None,
+        identity_type: str = "TT_USER",
+    ) -> Dict:
+        """
+        Internal: สร้าง Spark Ad จาก TikTok item_id
+        
+        Spark Ads = โฆษณาจาก organic content ที่มีอยู่แล้ว
+        """
+        ad_url = f"{cls.BASE_URL}/ad/create/"
+        
+        if not identity_id:
+            return {"success": False, "message": "Identity ID not found for this content/advertiser"}
+        
+        ad_payload = {
+            "advertiser_id": advertiser_id,
+            "adgroup_id": adgroup_id,
+            "creatives": [
+                {
+                    "ad_name": ad_name,
+                    "ad_format": "SINGLE_VIDEO",
+                    "tiktok_item_id": tiktok_item_id,
+                    "identity_type": identity_type,
+                    "identity_id": identity_id,
+                }
+            ],
+        }
+        
+        try:
+            resp = client.post(
+                ad_url,
+                headers={
+                    "Access-Token": token,
+                    "Content-Type": "application/json"
+                },
+                json=ad_payload
+            )
+            
+            data = resp.json()
+            
+            if resp.status_code == 200 and data.get("code") == 0:
+                ad_ids = data.get("data", {}).get("ad_ids", [])
+                ad_id = ad_ids[0] if ad_ids else None
+                print(f"[TikTokAdsService] Created ad {ad_id}: {ad_name}")
+                return {
+                    "success": True,
+                    "ad_id": ad_id,
+                    "message": "Ad created successfully"
+                }
+            else:
+                error_msg = data.get("message", "Failed to create ad")
+                
+                # Check for identity error (common issue with Spark Ads)
+                if "identity" in error_msg.lower():
+                    error_msg = f"Identity ID not found. Please bind the TikTok account first. Original error: {error_msg}"
+                
+                print(f"[TikTokAdsService] Failed to create ad: {error_msg}")
+                return {"success": False, "message": error_msg}
+                
+        except Exception as e:
+            print(f"[TikTokAdsService] Exception creating ad: {e}")
+            return {"success": False, "message": str(e)}
 

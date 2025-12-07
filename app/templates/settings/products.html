@@ -26,6 +26,43 @@
                 <option value="false">Inactive</option>
             </select>
         </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Bulk actions -->
+            <div class="flex flex-wrap items-center gap-2" x-show="selectedIds.length > 0">
+                <span class="text-xs text-gray-500 mr-1">
+                    เลือกแล้ว <span class="font-semibold" x-text="selectedIds.length"></span> รายการ
+                </span>
+                <!-- Status -->
+                <button type="button"
+                        @click="bulkUpdateStatus(true)"
+                        class="px-3 py-1.5 text-xs rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors">
+                    ตั้งเป็น Active
+                </button>
+                <button type="button"
+                        @click="bulkUpdateStatus(false)"
+                        class="px-3 py-1.5 text-xs rounded-full bg-gray-700 text-white hover:bg-gray-800 transition-colors">
+                    ตั้งเป็น Inactive
+                </button>
+                <!-- Allocate -->
+                <button type="button"
+                        @click="bulkUpdateAllocate(true)"
+                        class="px-3 py-1.5 text-xs rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors">
+                    จัดสรรงบ: ได้
+                </button>
+                <button type="button"
+                        @click="bulkUpdateAllocate(false)"
+                        class="px-3 py-1.5 text-xs rounded-full bg-slate-500 text-white hover:bg-slate-600 transition-colors">
+                    จัดสรรงบ: ไม่ได้
+                </button>
+                <!-- Delete -->
+                <button type="button"
+                        @click="bulkDelete()"
+                        class="px-3 py-1.5 text-xs rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors">
+                    ลบที่เลือก
+                </button>
+            </div>
+        </div>
         
         <button @click="openAddModal()" 
                 class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors text-sm font-medium">
@@ -64,6 +101,12 @@
         <table x-show="!loading" class="w-full text-sm">
             <thead class="bg-gray-50 border-b border-gray-200">
                 <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                        <input type="checkbox"
+                               class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                               @change="toggleSelectAll($event)"
+                               :checked="isAllSelected">
+                    </th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">รหัสสินค้า</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ชื่อสินค้า</th>
                     <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">หมวดหมู่</th>
@@ -75,7 +118,15 @@
             </thead>
             <tbody class="divide-y divide-gray-100">
                 <template x-for="product in products" :key="product.id">
-                    <tr class="hover:bg-gray-50">
+                    <tr class="hover:bg-gray-50"
+                        :class="selectedIds.includes(product.id) ? 'bg-blue-50/40' : ''">
+                        <td class="px-4 py-4">
+                            <input type="checkbox"
+                                   class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                   :value="product.id"
+                                   :checked="selectedIds.includes(product.id)"
+                                   @change="toggleSelect(product.id, $event)">
+                        </td>
                         <td class="px-6 py-4 font-mono font-bold text-blue-600" x-text="product.code"></td>
                         <td class="px-6 py-4">
                             <p class="font-medium text-gray-800" x-text="product.name"></p>
@@ -205,6 +256,7 @@ function productsPage() {
         loading: true,
         search: '',
         activeFilter: '',
+        selectedIds: [],
         showModal: false,
         isEditing: false,
         saving: false,
@@ -239,10 +291,124 @@ function productsPage() {
                 this.stats.total = this.products.length;
                 this.stats.active = this.products.filter(p => p.is_active).length;
                 this.stats.canAllocate = this.products.filter(p => p.can_allocate_budget).length;
+
+                // ถ้ารายการเปลี่ยน ให้ sync การเลือก (เผื่อมี product หายไปจาก filter)
+                this.selectedIds = this.selectedIds.filter(id => this.products.some(p => p.id === id));
             } catch (e) {
                 console.error('Error loading products:', e);
             }
             this.loading = false;
+        },
+
+        // ===== Bulk selection & actions =====
+        get isAllSelected() {
+            return this.products.length > 0 &&
+                   this.selectedIds.length === this.products.length;
+        },
+
+        toggleSelect(id, event) {
+            const checked = event.target.checked;
+            if (checked) {
+                if (!this.selectedIds.includes(id)) {
+                    this.selectedIds.push(id);
+                }
+            } else {
+                this.selectedIds = this.selectedIds.filter(x => x !== id);
+            }
+        },
+
+        toggleSelectAll(event) {
+            const checked = event.target.checked;
+            if (checked) {
+                this.selectedIds = this.products.map(p => p.id);
+            } else {
+                this.selectedIds = [];
+            }
+        },
+
+        async bulkUpdateStatus(isActive) {
+            if (this.selectedIds.length === 0) return;
+
+            const confirmText = isActive
+                ? `ตั้งสถานะสินค้า ${this.selectedIds.length} รายการเป็น Active ?`
+                : `ตั้งสถานะสินค้า ${this.selectedIds.length} รายการเป็น Inactive ?`;
+            if (!confirm(confirmText)) return;
+
+            try {
+                const res = await fetch('/api/v1/products/bulk-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: this.selectedIds, is_active: isActive })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert(err.detail || 'เกิดข้อผิดพลาดในการอัปเดตสถานะ');
+                    return;
+                }
+
+                // reload แล้วเคลียร์ selection
+                await this.loadProducts();
+                this.selectedIds = [];
+            } catch (e) {
+                console.error('Error bulk updating status:', e);
+                alert('เกิดข้อผิดพลาดในการอัปเดตสถานะ');
+            }
+        },
+
+        async bulkUpdateAllocate(canAllocate) {
+            if (this.selectedIds.length === 0) return;
+
+            const confirmText = canAllocate
+                ? `ตั้งสินค้า ${this.selectedIds.length} รายการให้ \"จัดสรรงบ: ได้\" ?`
+                : `ตั้งสินค้า ${this.selectedIds.length} รายการให้ \"จัดสรรงบ: ไม่ได้\" ?`;
+            if (!confirm(confirmText)) return;
+
+            try {
+                const res = await fetch('/api/v1/products/bulk-allocate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: this.selectedIds, can_allocate_budget: canAllocate })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert(err.detail || 'เกิดข้อผิดพลาดในการอัปเดตการจัดสรรงบ');
+                    return;
+                }
+
+                await this.loadProducts();
+                this.selectedIds = [];
+            } catch (e) {
+                console.error('Error bulk updating allocate flag:', e);
+                alert('เกิดข้อผิดพลาดในการอัปเดตการจัดสรรงบ');
+            }
+        },
+
+        async bulkDelete() {
+            if (this.selectedIds.length === 0) return;
+
+            if (!confirm(`ลบสินค้า ${this.selectedIds.length} รายการที่เลือกหรือไม่?`)) return;
+
+            try {
+                const res = await fetch('/api/v1/products/bulk-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: this.selectedIds })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert(err.detail || 'เกิดข้อผิดพลาดในการลบสินค้าแบบกลุ่ม');
+                    return;
+                }
+
+                await this.loadProducts();
+                this.selectedIds = [];
+            } catch (e) {
+                console.error('Error bulk deleting products:', e);
+                alert('เกิดข้อผิดพลาดในการลบสินค้าแบบกลุ่ม');
+            }
         },
         
         openAddModal() {

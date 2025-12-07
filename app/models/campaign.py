@@ -6,7 +6,13 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import BaseModel, SoftDeleteMixin
 from app.models.enums import (
-    Platform, AdStatus, CampaignObjective, OptimizationGoal, BudgetType
+    Platform,
+    AdStatus,
+    CampaignObjective,
+    OptimizationGoal,
+    BudgetType,
+    ContentType,
+    AdGroupStructure,
 )
 
 
@@ -74,9 +80,10 @@ class AdGroup(BaseModel, SoftDeleteMixin):
     id = Column(Integer, primary_key=True, index=True)
     
     # ============================================
-    # Platform & Campaign
+    # Platform & Account & Campaign
     # ============================================
     platform = Column(Enum(Platform), nullable=False, index=True)
+    ad_account_id = Column(Integer, ForeignKey("ad_accounts.id"), nullable=True, index=True)
     campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
     external_adgroup_id = Column(String(100), nullable=False, index=True)
     
@@ -85,6 +92,24 @@ class AdGroup(BaseModel, SoftDeleteMixin):
     # ============================================
     name = Column(String(255), nullable=False)
     status = Column(Enum(AdStatus), default=AdStatus.ACTIVE, index=True)
+
+    # ============================================
+    # Structure & Strategy (WeBoostX 2.0)
+    # ============================================
+    # NOTE: These columns are not yet in the database - uncomment when migration is run
+    # โครงสร้างความสัมพันธ์ระหว่าง adgroup กับ content:
+    # - SINGLE_CONTENT: 1 adgroup / 1 content (ACE-style หรือคลิปเดี่ยว)
+    # - MULTI_CONTENT: 1 adgroup / หลาย content (ABX-style, multi creative)
+    # - UNKNOWN: ยังไม่จัดประเภท / สร้างเองนอกระบบ
+    # structure = Column(Enum(AdGroupStructure), default=AdGroupStructure.UNKNOWN, index=True)
+
+    # แท็กชื่อกลยุทธ์ที่ระบบใช้จัดการ adgroup นี้ เช่น "ACE", "ABX", "BRANDING_MULTI"
+    # ไม่บังคับ schema ให้ตายตัว เพื่อให้เพิ่ม strategy ใหม่ได้ง่าย
+    # strategy_tag = Column(String(100), nullable=True, index=True)
+
+    # content_style หลักของ adgroup นี้ (ใช้ ContentType เดียวกับตาราง contents)
+    # เช่น SALE / REVIEW / BRANDING / ECOM – ช่วยให้ optimizer เลือก/กรองง่ายขึ้น
+    # content_style = Column(Enum(ContentType), nullable=True, index=True)
     
     # ============================================
     # Optimization
@@ -142,6 +167,7 @@ class AdGroup(BaseModel, SoftDeleteMixin):
     # ============================================
     # Relationships
     # ============================================
+    ad_account = relationship("AdAccount", back_populates="ad_groups")
     campaign = relationship("Campaign", back_populates="ad_groups")
     ads = relationship("Ad", back_populates="ad_group")
 
@@ -154,9 +180,10 @@ class Ad(BaseModel, SoftDeleteMixin):
     id = Column(Integer, primary_key=True, index=True)
     
     # ============================================
-    # Platform & AdGroup
+    # Platform & Account & AdGroup
     # ============================================
     platform = Column(Enum(Platform), nullable=False, index=True)
+    ad_account_id = Column(Integer, ForeignKey("ad_accounts.id"), nullable=True, index=True)
     ad_group_id = Column(Integer, ForeignKey("ad_groups.id"), nullable=False, index=True)
     external_ad_id = Column(String(100), nullable=False, index=True)
     
@@ -209,6 +236,7 @@ class Ad(BaseModel, SoftDeleteMixin):
     # ============================================
     # Relationships
     # ============================================
+    ad_account = relationship("AdAccount", back_populates="ads")
     ad_group = relationship("AdGroup", back_populates="ads")
     content = relationship("Content", back_populates="ads")
 
@@ -219,6 +247,7 @@ class AdPerformanceHistory(BaseModel):
     __tablename__ = "ad_performance_history"
     
     id = Column(Integer, primary_key=True, index=True)
+    ad_account_id = Column(Integer, ForeignKey("ad_accounts.id"), nullable=True, index=True)
     ad_id = Column(Integer, ForeignKey("ads.id"), nullable=False, index=True)
     date = Column(Date, nullable=False, index=True)
     

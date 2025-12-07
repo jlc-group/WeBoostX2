@@ -164,16 +164,31 @@
             <table x-show="!loading" class="min-w-full text-xs">
                 <thead class="bg-gray-50 border-b border-gray-200 whitespace-nowrap">
                     <tr>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase">Create Time / Code</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase">Name</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none" @click="sortBy('created_at')">
+                            Create Time / Code
+                            <span x-show="sortField === 'created_at'" x-text="sortDir === 'asc' ? '▲' : '▼'" class="ml-1 text-blue-600"></span>
+                        </th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none" @click="sortBy('name')">
+                            Name
+                            <span x-show="sortField === 'name'" x-text="sortDir === 'asc' ? '▲' : '▼'" class="ml-1 text-blue-600"></span>
+                        </th>
                         <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase">Locations</th>
-                        <th class="px-4 py-3 text-center font-semibold text-gray-600 uppercase">Gender</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none" @click="sortBy('gender')">
+                            Gender
+                            <span x-show="sortField === 'gender'" x-text="sortDir === 'asc' ? '▲' : '▼'" class="ml-1 text-blue-600"></span>
+                        </th>
                         <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase">Age Groups</th>
                         <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase">Languages</th>
                         <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase">Interests</th>
                         <th class="px-4 py-3 text-left font-semibold text-gray-600 uppercase min-w-[200px]">Action Categories</th>
-                        <th class="px-4 py-3 text-center font-semibold text-gray-600 uppercase">Is Approve</th>
-                        <th class="px-4 py-3 text-right font-semibold text-gray-600 uppercase">Audience Size</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none" @click="sortBy('is_approved')">
+                            Is Approve
+                            <span x-show="sortField === 'is_approved'" x-text="sortDir === 'asc' ? '▲' : '▼'" class="ml-1 text-blue-600"></span>
+                        </th>
+                        <th class="px-4 py-3 text-right font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none" @click="sortBy('audience_size_lower')">
+                            Audience Size
+                            <span x-show="sortField === 'audience_size_lower'" x-text="sortDir === 'asc' ? '▲' : '▼'" class="ml-1 text-blue-600"></span>
+                        </th>
                         <th class="px-4 py-3 text-center font-semibold text-gray-600 uppercase sticky right-0 bg-gray-50 shadow-l">Actions</th>
                     </tr>
                 </thead>
@@ -197,18 +212,29 @@
                                       }"
                                       x-text="t.gender || 'ALL'"></span>
                             </td>
-                            <td class="px-4 py-3 align-top text-gray-600 max-w-[150px] truncate" :title="formatAgeGroups(t.age_range)" x-text="formatAgeGroups(t.age_range)"></td>
-                            <td class="px-4 py-3 align-top text-gray-600" x-text="formatLanguages(t.languages)"></td>
-                            <td class="px-4 py-3 align-top text-gray-600 max-w-[200px]">
-                                <div class="line-clamp-3" :title="formatInterests(t.interests)" x-text="formatInterests(t.interests)"></div>
+                            <td class="px-4 py-3 align-top text-gray-600 text-[11px] whitespace-normal">
+                                <div class="flex flex-wrap gap-1">
+                                    <template x-for="age in (t.age_range || [])" :key="age">
+                                        <span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px]" x-text="age.replace('AGE_', '')"></span>
+                                    </template>
+                                    <span x-show="!t.age_range || t.age_range.length === 0" class="text-gray-400">-</span>
+                                </div>
                             </td>
-                            <td class="px-4 py-3 align-top text-gray-600 text-[11px]">
-                                <div x-html="formatActions(t.behaviors, t.hashtags)"></div>
+                            <td class="px-4 py-3 align-top text-gray-600" x-text="formatLanguages(t.languages)"></td>
+                            <td class="px-4 py-3 align-top text-gray-600 text-[11px] max-w-[250px]">
+                                <div class="whitespace-normal break-words" x-text="formatInterests(t.interests)"></div>
+                            </td>
+                            <td class="px-4 py-3 align-top text-gray-600 text-[11px] max-w-[300px]">
+                                <div class="whitespace-normal break-words" x-html="formatActions(t.behaviors, t.hashtags)"></div>
                             </td>
                             <td class="px-4 py-3 align-top text-center">
-                                <input type="checkbox" class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                                       :checked="t.is_approved"
-                                       @change="toggleApproval(t)">
+                                <button @click="toggleApproval(t)"
+                                        class="px-2.5 py-1 rounded-full text-[10px] font-medium transition-all duration-200 cursor-pointer hover:scale-105"
+                                        :class="t.is_approved 
+                                            ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                                    <span x-text="t.is_approved ? '✓ Approved' : 'Inactive'"></span>
+                                </button>
                             </td>
                             <td class="px-4 py-3 align-top text-right whitespace-nowrap">
                                 <template x-if="t.audience_size_lower && t.audience_size_upper">
@@ -223,6 +249,7 @@
                             <td class="px-4 py-3 align-top text-center sticky right-0 bg-white shadow-l">
                                 <div class="flex flex-col items-center justify-center gap-1">
                                     <button @click="editTargeting(t)" class="px-2 py-1 bg-yellow-400 text-white rounded text-[10px] hover:bg-yellow-500 w-16">Edit</button>
+                                    <button @click="openDuplicateModal(t)" class="px-2 py-1 bg-blue-500 text-white rounded text-[10px] hover:bg-blue-600 w-16">Duplicate</button>
                                     <button @click="deleteTargeting(t)" class="px-2 py-1 bg-red-500 text-white rounded text-[10px] hover:bg-red-600 w-16">Delete</button>
                                 </div>
                             </td>
@@ -318,19 +345,24 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">ตำแหน่งที่ตั้ง (Locations)</label>
                         <input type="text" 
                                x-model="locationSearch" 
-                               @focus="showLocationDropdown = true"
-                               @blur="setTimeout(() => { showLocationDropdown = false }, 200)"
+                               @focus="locationDropdownOpen = true"
+                               @blur="setTimeout(() => { locationDropdownOpen = false }, 250)"
                                placeholder="🔍 พิมพ์เพื่อค้นหา Location..."
                                class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm bg-white">
                         
                         <!-- Dropdown results -->
-                        <div x-show="showLocationDropdown && locationSearch.length >= 1" 
+                        <div x-show="locationDropdownOpen && locationSearch.length >= 1" 
+                             x-cloak
                              class="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
                             <template x-for="loc in filteredLocations" :key="loc.location_id">
-                                <div @mousedown.prevent="addLocationItem(loc); locationSearch = ''; showLocationDropdown = false"
-                                     class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm flex items-center justify-between">
-                                    <span x-text="loc.name"></span>
-                                    <span class="text-xs text-gray-400 ml-2" x-text="loc.region_code ? loc.region_code + ' (' + (loc.level || '') + ')' : (loc.level || '')"></span>
+                                <div @mousedown.prevent="toggleLocationItem(loc)"
+                                     class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm flex items-center gap-2"
+                                     :class="{ 'bg-blue-50': isLocationSelected(loc.location_id) }">
+                                    <input type="checkbox" 
+                                           :checked="isLocationSelected(loc.location_id)"
+                                           class="w-4 h-4 text-blue-600 rounded border-gray-300 pointer-events-none">
+                                    <span class="flex-1" x-text="loc.name"></span>
+                                    <span class="text-xs text-gray-400" x-text="loc.region_code ? loc.region_code + ' (' + (loc.level || '') + ')' : (loc.level || '')"></span>
                                 </div>
                             </template>
                             <div x-show="filteredLocations.length === 0"
@@ -646,13 +678,21 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Audience Size (Min)</label>
-                        <input type="number" x-model.number="form.audience_size_lower" min="0"
-                               class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm">
+                        <input type="text" 
+                               :value="form.audience_size_lower ? formatNumber(form.audience_size_lower) : ''"
+                               @input="form.audience_size_lower = parseInt($event.target.value.replace(/,/g, '')) || null"
+                               @blur="$event.target.value = form.audience_size_lower ? formatNumber(form.audience_size_lower) : ''"
+                               placeholder="0"
+                               class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm text-right">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Audience Size (Max)</label>
-                        <input type="number" x-model.number="form.audience_size_upper" min="0"
-                               class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm">
+                        <input type="text" 
+                               :value="form.audience_size_upper ? formatNumber(form.audience_size_upper) : ''"
+                               @input="form.audience_size_upper = parseInt($event.target.value.replace(/,/g, '')) || null"
+                               @blur="$event.target.value = form.audience_size_upper ? formatNumber(form.audience_size_upper) : ''"
+                               placeholder="0"
+                               class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm text-right">
                     </div>
                 </div>
                 
@@ -669,12 +709,8 @@
                 <!-- Status -->
                 <div class="flex items-center gap-6">
                     <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" x-model="form.is_active" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
-                        <span class="text-sm text-gray-700">Active</span>
-                    </label>
-                    <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" x-model="form.is_approved" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
-                        <span class="text-sm text-gray-700">Approved</span>
+                        <span class="text-sm text-gray-700">อนุมัติแล้ว (Approved)</span>
                     </label>
                 </div>
                 
@@ -692,6 +728,47 @@
             </form>
         </div>
     </div>
+    
+    <!-- Duplicate Modal -->
+    <div x-show="showDuplicateModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         @click.self="showDuplicateModal = false">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+            <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-800">Duplicate Targeting</h3>
+                <button @click="showDuplicateModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">New Targeting Code *</label>
+                    <input type="text" x-model="duplicateForm.targeting_code" 
+                           class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm"
+                           placeholder="เช่น MF_SUN_MASS_18_54_COPY">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">New Targeting Name *</label>
+                    <input type="text" x-model="duplicateForm.name" 
+                           class="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm"
+                           placeholder="ชื่อ Targeting ใหม่">
+                </div>
+            </div>
+            <div class="p-6 border-t border-gray-200 flex justify-end gap-3">
+                <button type="button" @click="showDuplicateModal = false"
+                        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors text-sm font-medium">
+                    ยกเลิก
+                </button>
+                <button type="button" @click="submitDuplicate()" :disabled="duplicating"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50">
+                    <span x-show="!duplicating">Duplicate</span>
+                    <span x-show="duplicating">กำลังสร้าง...</span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -707,6 +784,16 @@ function targetingPage() {
         saving: false,
         editingId: null,
         stats: { total: 0, approved: 0, pending: 0, active: 0 },
+        
+        // Sort
+        sortField: 'created_at',
+        sortDir: 'desc',
+        
+        // Duplicate
+        showDuplicateModal: false,
+        duplicating: false,
+        duplicateSourceId: null,
+        duplicateForm: { targeting_code: '', name: '' },
         
         // Options from API
         genderOptions: [],
@@ -739,7 +826,7 @@ function targetingPage() {
         locationSearch: '',
         hashtagSearch: '',
         hashtagResults: [],
-        showLocationDropdown: false,
+        locationDropdownOpen: false,
         showHashtagDropdown: false,
         expandedInterests: [],
         expandedVideoActions: [],
@@ -890,6 +977,9 @@ function targetingPage() {
                 const res = await fetch(url);
                 this.targetings = await res.json();
                 
+                // Apply sorting
+                this.applySorting();
+                
                 this.stats.total = this.targetings.length;
                 this.stats.approved = this.targetings.filter(t => t.is_approved).length;
                 this.stats.pending = this.targetings.filter(t => !t.is_approved).length;
@@ -898,6 +988,42 @@ function targetingPage() {
                 console.error('Error loading targetings:', e);
             }
             this.loading = false;
+        },
+        
+        sortBy(field) {
+            if (this.sortField === field) {
+                this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortField = field;
+                this.sortDir = 'asc';
+            }
+            this.applySorting();
+        },
+        
+        applySorting() {
+            const field = this.sortField;
+            const dir = this.sortDir === 'asc' ? 1 : -1;
+            
+            this.targetings.sort((a, b) => {
+                let valA = a[field];
+                let valB = b[field];
+                
+                // Handle nulls
+                if (valA == null) valA = '';
+                if (valB == null) valB = '';
+                
+                // Handle booleans
+                if (typeof valA === 'boolean') valA = valA ? 1 : 0;
+                if (typeof valB === 'boolean') valB = valB ? 1 : 0;
+                
+                // Handle numbers
+                if (typeof valA === 'number' && typeof valB === 'number') {
+                    return (valA - valB) * dir;
+                }
+                
+                // Handle strings/dates
+                return String(valA).localeCompare(String(valB)) * dir;
+            });
         },
         
         openAddModal() {
@@ -959,19 +1085,56 @@ function targetingPage() {
                 this.selectedCreatorActions = [];
                 
                 if (detail.behaviors) {
-                    detail.behaviors.forEach(b => {
-                        const item = { 
-                            id: b.id || b.action_category_id, 
-                            name: b.name,
-                            scene: b.scene 
-                        };
-                        if (b.scene === 'VIDEO_RELATED' || !b.scene) { // Handle legacy data without scene
-                            item.scene = 'VIDEO_RELATED';
-                            this.selectedVideoActions.push(item);
-                        } else if (b.scene === 'CREATOR_RELATED') {
-                            this.selectedCreatorActions.push(item);
-                        }
-                    });
+                    // Check if it's TikTok API format (from old system)
+                    const hasApiFormat = detail.behaviors.some(b => b.action_scene && b.action_category_ids);
+                    
+                    if (hasApiFormat) {
+                        // Parse TikTok API format: { action_scene, action_category_ids, action_category_names }
+                        detail.behaviors.forEach(b => {
+                            if (!b.action_scene || !b.action_category_ids) return;
+                            
+                            // Parse action_category_names to get name for each ID
+                            // Format: "ตลกขบขัน (1010), ความงาม (1610100), ..."
+                            const namesMap = {};
+                            if (b.action_category_names) {
+                                const regex = /([^,]+?)\s*\((\d+)\)/g;
+                                let match;
+                                while ((match = regex.exec(b.action_category_names)) !== null) {
+                                    namesMap[match[2]] = match[1].trim();
+                                }
+                            }
+                            
+                            b.action_category_ids.forEach(id => {
+                                const item = {
+                                    id: id,
+                                    name: namesMap[id] || `ID: ${id}`,
+                                    scene: b.action_scene
+                                };
+                                
+                                if (b.action_scene === 'VIDEO_RELATED') {
+                                    this.selectedVideoActions.push(item);
+                                } else if (b.action_scene === 'CREATOR_RELATED') {
+                                    this.selectedCreatorActions.push(item);
+                                }
+                                // HASHTAG_RELATED is handled by selectedHashtags
+                            });
+                        });
+                    } else {
+                        // Handle new format: [{ scene, id, name }, ...]
+                        detail.behaviors.forEach(b => {
+                            const item = { 
+                                id: b.id || b.action_category_id, 
+                                name: b.name || `ID: ${b.id || b.action_category_id}`,
+                                scene: b.scene 
+                            };
+                            if (b.scene === 'VIDEO_RELATED' || !b.scene) {
+                                item.scene = 'VIDEO_RELATED';
+                                this.selectedVideoActions.push(item);
+                            } else if (b.scene === 'CREATOR_RELATED') {
+                                this.selectedCreatorActions.push(item);
+                            }
+                        });
+                    }
                 }
                 
                 this.showModal = true;
@@ -1000,6 +1163,24 @@ function targetingPage() {
             }
         },
         removeLocation(i) { this.selectedLocations.splice(i, 1); },
+        isLocationSelected(locationId) {
+            return this.selectedLocations.some(l => l.location_id === locationId);
+        },
+        toggleLocationItem(loc) {
+            if (!loc || !loc.location_id) return;
+            const idx = this.selectedLocations.findIndex(l => l.location_id === loc.location_id);
+            if (idx !== -1) {
+                this.selectedLocations.splice(idx, 1);
+            } else {
+                this.selectedLocations.push({ 
+                    location_id: loc.location_id, 
+                    id: loc.location_id,
+                    name: loc.name,
+                    region_code: loc.region_code,
+                    level: loc.level
+                });
+            }
+        },
         
         // Hashtags
         async searchHashtags() {
@@ -1197,6 +1378,8 @@ function targetingPage() {
             this.form.interests = this.selectedInterests;
             this.form.behaviors = [...this.selectedVideoActions, ...this.selectedCreatorActions];
             this.form.hashtags = this.selectedHashtags;
+            // Sync is_active กับ is_approved
+            this.form.is_active = this.form.is_approved;
             
             try {
                 const url = this.isEditing ? `/api/v1/targeting/${this.editingId}` : '/api/v1/targeting';
@@ -1246,12 +1429,76 @@ function targetingPage() {
                 const res = await fetch(`/api/v1/targeting/${t.id}`, { method: 'DELETE' });
                 if (res.ok) {
                     this.loadTargetings();
+                    alert('ลบสำเร็จ!');
                 } else {
-                    alert('เกิดข้อผิดพลาดในการลบ');
+                    const err = await res.json().catch(() => ({}));
+                    alert('เกิดข้อผิดพลาดในการลบ: ' + (err.detail || res.status));
                 }
             } catch (e) {
                 console.error('Error deleting targeting:', e);
+                alert('เกิดข้อผิดพลาด: ' + e.message);
             }
+        },
+        
+        openDuplicateModal(t) {
+            this.duplicateSourceId = t.id;
+            this.duplicateForm = {
+                targeting_code: t.targeting_code + '_COPY',
+                name: t.name + ' (Copy)'
+            };
+            this.showDuplicateModal = true;
+        },
+        
+        async submitDuplicate() {
+            if (!this.duplicateForm.targeting_code || !this.duplicateForm.name) {
+                alert('กรุณากรอก Targeting Code และ Name');
+                return;
+            }
+            
+            this.duplicating = true;
+            try {
+                // Fetch original targeting data
+                const origRes = await fetch(`/api/v1/targeting/${this.duplicateSourceId}`);
+                if (!origRes.ok) throw new Error('Cannot fetch original targeting');
+                const original = await origRes.json();
+                
+                // Create new targeting with copied data
+                const newData = {
+                    targeting_code: this.duplicateForm.targeting_code,
+                    name: this.duplicateForm.name,
+                    platform: original.platform,
+                    gender: original.gender,
+                    age_range: original.age_range,
+                    locations: original.locations,
+                    languages: original.languages,
+                    interests: original.interests,
+                    behaviors: original.behaviors,
+                    hashtags: original.hashtags,
+                    audience_size_lower: original.audience_size_lower,
+                    audience_size_upper: original.audience_size_upper,
+                    is_approved: false,
+                    is_active: false
+                };
+                
+                const res = await fetch('/api/v1/targeting', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newData)
+                });
+                
+                if (res.ok) {
+                    this.showDuplicateModal = false;
+                    this.loadTargetings();
+                    alert('Duplicate สำเร็จ!');
+                } else {
+                    const err = await res.json();
+                    alert('Error: ' + (err.detail || 'Failed to duplicate'));
+                }
+            } catch (e) {
+                console.error('Error duplicating targeting:', e);
+                alert('Error: ' + e.message);
+            }
+            this.duplicating = false;
         },
         
         formatNumber(num) {
@@ -1270,7 +1517,16 @@ function targetingPage() {
         },
         formatInterests(interests) {
             if (!interests || !interests.length) return '-';
-            return interests.map(i => `${i.name || i.interest_category_name} (${i.id || i.interest_category_id})`).join(', ');
+            return interests.map(i => {
+                const name = i.name || i.interest_category_name || '';
+                const id = String(i.id || i.interest_category_id || '');
+                // ตรวจสอบว่าชื่อมี ID อยู่แล้วหรือไม่ เช่น "ครีมบำรุงผิว (14103100101)"
+                // หรือถ้าชื่อลงท้ายด้วย (...) อยู่แล้ว ก็ไม่ต้องเพิ่ม
+                if (name && (name.indexOf('(' + id + ')') !== -1 || /\(\d+\)$/.test(name))) {
+                    return name; // ไม่ต้องเพิ่ม ID อีก
+                }
+                return name ? `${name} (${id})` : `(${id})`;
+            }).join(', ');
         },
         formatAgeGroups(ages) {
             if (!ages || !ages.length) return '-';
@@ -1283,21 +1539,48 @@ function targetingPage() {
         formatActions(behaviors, hashtags) {
             let parts = [];
             
-            // Video Related
-            const video = behaviors?.filter(b => b.scene === 'VIDEO_RELATED' || !b.scene) || [];
-            if (video.length) {
-                parts.push(`<b>Video Related:</b><br>` + video.map(b => `${b.name} (${b.id || b.action_category_id})`).join(', '));
+            if (behaviors && behaviors.length) {
+                // Check if it's TikTok API format (from old system migration)
+                // Format: { action_scene, action_category_ids, action_category_names }
+                const hasApiFormat = behaviors.some(b => b.action_scene && (b.action_category_names || b.action_category_ids));
+                
+                if (hasApiFormat) {
+                    // Handle TikTok API format (from old system)
+                    for (const b of behaviors) {
+                        if (!b.action_scene) continue;
+                        
+                        let label = b.action_scene;
+                        if (b.action_scene === 'VIDEO_RELATED') label = 'Video Related';
+                        else if (b.action_scene === 'CREATOR_RELATED') label = 'Creator Related';
+                        else if (b.action_scene === 'HASHTAG_RELATED') label = 'Hashtag Related';
+                        
+                        // Use action_category_names if available, otherwise list IDs
+                        const content = b.action_category_names || 
+                            (b.action_category_ids ? b.action_category_ids.map(id => `(${id})`).join(', ') : '-');
+                        
+                        if (content && content !== '-') {
+                            parts.push(`<b>${label}:</b><br>${content}`);
+                        }
+                    }
+                } else {
+                    // Handle new format: [{ scene, id, name }, ...]
+                    // Video Related
+                    const video = behaviors.filter(b => b.scene === 'VIDEO_RELATED' || !b.scene);
+                    if (video.length) {
+                        parts.push(`<b>Video Related:</b><br>` + video.map(b => `${b.name || 'undefined'} (${b.id || b.action_category_id || '?'})`).join(', '));
+                    }
+                    
+                    // Creator Related
+                    const creator = behaviors.filter(b => b.scene === 'CREATOR_RELATED');
+                    if (creator.length) {
+                        parts.push(`<b>Creator Related:</b><br>` + creator.map(b => `${b.name || 'undefined'} (${b.id || b.action_category_id || '?'})`).join(', '));
+                    }
+                }
             }
             
-            // Creator Related
-            const creator = behaviors?.filter(b => b.scene === 'CREATOR_RELATED') || [];
-            if (creator.length) {
-                parts.push(`<b>Creator Related:</b><br>` + creator.map(b => `${b.name} (${b.id || b.action_category_id})`).join(', '));
-            }
-            
-            // Hashtag Related
+            // Handle hashtags from separate field (new format)
             if (hashtags && hashtags.length) {
-                parts.push(`<b>Hashtag Related:</b><br>` + hashtags.map(h => h.name || h.keyword).join(', '));
+                parts.push(`<b>Hashtag Related:</b><br>` + hashtags.map(h => h.name || h.keyword || h.id).join(', '));
             }
             
             return parts.length ? parts.join('<br>') : '-';

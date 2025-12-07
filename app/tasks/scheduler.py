@@ -44,6 +44,18 @@ def start_scheduler():
     )
     
     # ============================================
+    # Campaigns & AdGroups Sync (every 15 minutes)
+    # - For fast ABX/ACE ad creation flow
+    # ============================================
+    scheduler.add_job(
+        func=sync_campaigns_adgroups_job,
+        trigger=IntervalTrigger(minutes=15),
+        id="sync_campaigns_adgroups",
+        name="Sync campaigns & adgroups to local DB",
+        replace_existing=True,
+    )
+    
+    # ============================================
     # Ads Spend Sync (every 60 minutes)
     # ============================================
     scheduler.add_job(
@@ -171,6 +183,17 @@ def sync_ads_job():
         print(f"[{datetime.now()}] Ads sync completed")
     except Exception as e:
         print(f"[{datetime.now()}] Ads sync failed: {e}")
+
+
+def sync_campaigns_adgroups_job():
+    """Sync campaigns & adgroups to local DB for fast ad creation"""
+    print(f"[{datetime.now()}] Running campaigns & adgroups sync job...")
+    try:
+        from app.tasks.sync_tasks import sync_campaigns_adgroups
+        result = sync_campaigns_adgroups()
+        print(f"[{datetime.now()}] Campaigns & adgroups sync completed: {result}")
+    except Exception as e:
+        print(f"[{datetime.now()}] Campaigns & adgroups sync failed: {e}")
 
 
 def sync_ads_spend_job():

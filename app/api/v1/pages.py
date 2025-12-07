@@ -234,10 +234,68 @@ async def contents_instagram_page(request: Request, db: Session = Depends(get_db
 
 
 @router.get("/campaigns", response_class=HTMLResponse)
-async def campaigns_page(request: Request):
-    """Campaigns page"""
-    # TODO: Create campaigns template
-    return RedirectResponse(url="/dashboard")
+async def campaigns_page(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Campaigns page - แสดงรายการ Campaigns ทั้งหมด"""
+    from app.models import Campaign, AdAccount
+    from app.models.enums import Platform
+    from sqlalchemy import func
+    
+    # Get all campaigns with stats
+    campaigns = db.query(Campaign).filter(
+        Campaign.deleted_at.is_(None)
+    ).order_by(Campaign.created_at.desc()).all()
+    
+    # Get advertisers for filter
+    advertisers = db.query(AdAccount).filter(
+        AdAccount.platform == Platform.TIKTOK,
+        AdAccount.status == "active"
+    ).all()
+    
+    # Calculate stats
+    total_campaigns = len(campaigns)
+    active_campaigns = len([c for c in campaigns if c.status == 'active'])
+    
+    # Group by objective
+    objective_counts = {}
+    for c in campaigns:
+        obj = c.objective or 'unknown'
+        objective_counts[obj] = objective_counts.get(obj, 0) + 1
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    # Convert campaigns to dicts for JSON serialization
+    campaigns_data = [
+        {
+            "id": c.id,
+            "name": c.name,
+            "external_campaign_id": c.external_campaign_id,
+            "objective": c.objective,
+            "status": c.status,
+            "daily_budget": float(c.daily_budget) if c.daily_budget else None,
+            "lifetime_budget": float(c.lifetime_budget) if c.lifetime_budget else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in campaigns
+    ]
+    
+    return templates.TemplateResponse("campaigns/index.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "campaigns",
+        "campaigns": campaigns_data,
+        "advertisers": advertisers,
+        "stats": {
+            "total": total_campaigns,
+            "active": active_campaigns,
+            "objective_counts": objective_counts,
+        }
+    })
 
 
 @router.get("/budgets", response_class=HTMLResponse)
@@ -575,3 +633,209 @@ async def facebook_page(request: Request):
     """Facebook platform page - redirect to contents"""
     return RedirectResponse(url="/contents/facebook")
 
+
+# ============================================
+# Content Routes (Master Data)
+# ============================================
+
+@router.get("/master/contents/tiktok", response_class=HTMLResponse)
+async def master_contents_tiktok_page(request: Request, db: Session = Depends(get_db)):
+    """TikTok Contents page under Master Data menu"""
+    from app.models.enums import Platform
+    from sqlalchemy import func
+    
+    total_contents = db.query(Content).filter(
+        Content.platform == Platform.TIKTOK,
+        Content.deleted_at.is_(None)
+    ).count()
+    
+    avg_pfm = db.query(func.avg(Content.pfm_score)).filter(
+        Content.platform == Platform.TIKTOK,
+        Content.pfm_score.isnot(None),
+        Content.deleted_at.is_(None)
+    ).scalar() or 0
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    return templates.TemplateResponse("contents/tiktok.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "master_contents_tiktok",
+        "stats": {
+            "total": total_contents,
+            "avg_pfm": float(avg_pfm)
+        }
+    })
+
+
+# ============================================
+# Ad Creation Pages
+# ============================================
+
+@router.get("/ads/create", response_class=HTMLResponse)
+async def ad_create_page(
+    request: Request,
+    content_id: int,
+    ad_type: Optional[str] = None,  # 'ACE' or 'ABX'
+    targeting_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Unified Ad Creation page - supports both ACE and ABX"""
+    from app.models.enums import Platform
+    from app.models import AdAccount
+    from app.models.platform import TargetingTemplate
+    
+    # Get content
+    content = db.query(Content).filter(Content.id == content_id).first()
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+    
+    # Get advertisers
+    advertisers = db.query(AdAccount).filter(
+        AdAccount.platform == Platform.TIKTOK,
+        AdAccount.status == "active"
+    ).all()
+    
+    # Get targeting template if provided
+    targeting = None
+    if targeting_id:
+        targeting = db.query(TargetingTemplate).filter(
+            TargetingTemplate.id == int(targeting_id)
+        ).first()
+    
+    # Get all targeting templates for selection
+    targeting_templates = db.query(TargetingTemplate).filter(
+        TargetingTemplate.is_active == True
+    ).all()
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    # Filter targeting templates by content's preferred_targeting_ids
+    preferred_ids = content.preferred_targeting_ids or []
+    if preferred_ids:
+        # Only show targeting templates that content has marked as preferred
+        filtered_templates = [t for t in targeting_templates if t.id in preferred_ids]
+    else:
+        # No preferred targeting = must set targeting first
+        filtered_templates = []
+    
+    return templates.TemplateResponse("ads/create.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "contents_tiktok",
+        "content": content,
+        "advertisers": advertisers,
+        "targeting": targeting,
+        "targeting_id": targeting_id,
+        "targeting_templates": filtered_templates,
+        "all_targeting_templates": targeting_templates,  # For ABX modal
+        "products": ",".join(content.product_codes or []),
+        "ad_type": ad_type,  # Pre-select type if provided
+        "has_preferred_targeting": len(preferred_ids) > 0,
+    })
+
+
+@router.get("/ads/ace/create", response_class=HTMLResponse)
+async def ace_create_page(
+    request: Request,
+    content_id: int,
+    targeting_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """ACE Ad Creation page - redirects to unified page"""
+    from app.models.enums import Platform
+    from app.models import AdAccount
+    from app.models.platform import TargetingTemplate
+    
+    # Get content
+    content = db.query(Content).filter(Content.id == content_id).first()
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+    
+    # Get advertisers
+    advertisers = db.query(AdAccount).filter(
+        AdAccount.platform == Platform.TIKTOK,
+        AdAccount.status == "active"
+    ).all()
+    
+    # Get targeting template if provided
+    targeting = None
+    if targeting_id:
+        targeting = db.query(TargetingTemplate).filter(
+            TargetingTemplate.id == int(targeting_id)
+        ).first()
+    
+    # Get all targeting templates for selection
+    targeting_templates = db.query(TargetingTemplate).filter(
+        TargetingTemplate.is_active == True
+    ).all()
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    return templates.TemplateResponse("ads/ace_create.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "contents_tiktok",
+        "content": content,
+        "advertisers": advertisers,
+        "targeting": targeting,
+        "targeting_id": targeting_id,
+        "targeting_templates": targeting_templates,
+        "products": ",".join(content.product_codes or []),
+    })
+
+
+@router.get("/ads/abx/create", response_class=HTMLResponse)
+async def abx_create_page(
+    request: Request,
+    content_id: int,
+    targeting_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """ABX Ad Creation page - add content to existing adgroup"""
+    from app.models.enums import Platform
+    from app.models import AdAccount
+    from app.models.platform import TargetingTemplate
+    
+    # Get content
+    content = db.query(Content).filter(Content.id == content_id).first()
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+    
+    # Get advertisers
+    advertisers = db.query(AdAccount).filter(
+        AdAccount.platform == Platform.TIKTOK,
+        AdAccount.status == "active"
+    ).all()
+    
+    # Get targeting template if provided
+    targeting = None
+    if targeting_id:
+        targeting = db.query(TargetingTemplate).filter(
+            TargetingTemplate.id == int(targeting_id)
+        ).first()
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    return templates.TemplateResponse("ads/abx_create.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "contents_tiktok",
+        "content": content,
+        "advertisers": advertisers,
+        "targeting": targeting,
+        "targeting_id": targeting_id,
+        "products": ",".join(content.product_codes or []),
+    })

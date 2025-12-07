@@ -78,3 +78,5 @@ old_ref/
 *.xls
 *.csv
 
+app/static/thumbnails/
+

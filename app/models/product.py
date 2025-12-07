@@ -4,10 +4,10 @@ Product and Product Group models
 from sqlalchemy import Column, Integer, String, Boolean, JSON, Text, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
 
-from app.models.base import BaseModel
+from app.models.base import BaseModel, SoftDeleteMixin
 
 
-class Product(BaseModel):
+class Product(BaseModel, SoftDeleteMixin):
     """Individual product/SKU"""
     
     __tablename__ = "products"
@@ -31,8 +31,7 @@ class Product(BaseModel):
     shopee_product_id = Column(String(100), nullable=True)
     lazada_product_id = Column(String(100), nullable=True)
 
-
-class ProductGroup(BaseModel):
+class ProductGroup(BaseModel, SoftDeleteMixin):
     """Group of products for budget allocation"""
     
     __tablename__ = "product_groups"

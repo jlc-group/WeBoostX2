@@ -5,6 +5,7 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func, cast, String
 from pydantic import BaseModel
 
 from app.core.deps import get_db
@@ -125,14 +126,21 @@ def get_targeting_list(
     db: Session = Depends(get_db)
 ):
     """Get all targeting templates with optional filtering"""
-    query = db.query(TargetingTemplate)
+    query = db.query(TargetingTemplate).filter(
+        TargetingTemplate.deleted_at.is_(None)
+    )
     
+    # NOTE:
+    #   บางฐานข้อมูลเก่าที่ migrate มาจากระบบเดิม อาจเก็บค่า platform เป็น TEXT
+    #   และใช้ตัวพิมพ์ใหญ่ (เช่น "TIKTOK") แทนที่จะเป็นค่าที่ Enum ใหม่ใช้
+    #   (เช่น "tiktok") ซึ่งทำให้ filter แบบเท่ากันตรง ๆ หา record ไม่เจอ
+    #   ตรงนี้เลยเปลี่ยนมาใช้เปรียบเทียบแบบ lower-case ทั้งสองฝั่ง
+    #   เพื่อให้รองรับทั้งเคสเก่าและใหม่
     if platform:
-        try:
-            platform_enum = Platform(platform.lower())
-            query = query.filter(TargetingTemplate.platform == platform_enum)
-        except ValueError:
-            pass
+        platform_str = platform.lower()
+        query = query.filter(
+            func.lower(cast(TargetingTemplate.platform, String)) == platform_str
+        )
     
     if is_active is not None:
         query = query.filter(TargetingTemplate.is_active == is_active)

@@ -1,0 +1,410 @@
+{% extends "layouts/app.html" %}
+
+{% block title %}ABX Create Ad - TikTok{% endblock %}
+
+{% block head %}
+<style>
+    .content-preview {
+        background: linear-gradient(135deg, #1e3a5f 0%, #0d1b2a 100%);
+        border-radius: 16px;
+        padding: 1.5rem;
+        color: white;
+    }
+    .content-preview img {
+        border-radius: 12px;
+        max-height: 200px;
+        object-fit: cover;
+    }
+    .stat-badge {
+        background: rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+    .form-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    .form-card-header {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #1e3a5f;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #f0f0f0;
+    }
+    .adgroup-card {
+        background: #f8fafc;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .adgroup-card:hover {
+        border-color: #3b82f6;
+        background: #eff6ff;
+    }
+    .adgroup-card.selected {
+        border-color: #3b82f6;
+        background: #dbeafe;
+    }
+    .adgroup-card .ad-count {
+        background: #3b82f6;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+    }
+    .name-preview {
+        background: #f8f9fa;
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 1rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.875rem;
+        word-break: break-all;
+    }
+    .loading-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+    }
+    .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 4px solid rgba(255,255,255,0.3);
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    .alert-toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        min-width: 300px;
+        animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+</style>
+{% endblock head %}
+
+{% block content %}
+<div x-data="abxCreateApp()" x-init="init()">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">📦 ABX Create Ad</h1>
+            <p class="text-gray-500 mt-1">เพิ่ม Content เข้า AdGroup ที่มีอยู่แล้ว (1 AdGroup = หลาย Content)</p>
+        </div>
+        <a href="/master/contents/tiktok" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left mr-2"></i>กลับหน้า Contents
+        </a>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Left: Content Preview -->
+        <div>
+            <div class="content-preview">
+                <h3 class="text-lg font-semibold mb-4">📹 TikTok Content</h3>
+                <div class="flex gap-4">
+                    {% if content.thumbnail_url %}
+                    <img src="{{ content.thumbnail_url }}" alt="Thumbnail" class="w-32 h-32 object-cover">
+                    {% else %}
+                    <div class="w-32 h-32 bg-gray-700 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-video text-3xl text-gray-500"></i>
+                    </div>
+                    {% endif %}
+                    <div class="flex-1">
+                        <p class="text-sm opacity-80 mb-2">
+                            <span class="font-medium">Item ID:</span>
+                            <a href="/contents/tiktok?q={{ content.platform_post_id }}" 
+                               class="hover:text-yellow-300 hover:underline transition-colors">
+                                {{ content.platform_post_id }}
+                            </a>
+                        </p>
+                        <p class="text-sm opacity-80 mb-2">
+                            <span class="font-medium">Products:</span> {{ products or 'N/A' }}
+                        </p>
+                        {% if content.caption %}
+                        <p class="text-xs opacity-60 line-clamp-3">{{ content.caption[:150] }}...</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-4">
+                    <span class="stat-badge">
+                        <i class="fas fa-eye"></i> {{ "{:,}".format(content.video_views or 0) }}
+                    </span>
+                    <span class="stat-badge">
+                        <i class="fas fa-heart"></i> {{ "{:,}".format(content.likes or 0) }}
+                    </span>
+                    <span class="stat-badge">
+                        <i class="fas fa-comment"></i> {{ "{:,}".format(content.comments or 0) }}
+                    </span>
+                    <span class="stat-badge">
+                        <i class="fas fa-share"></i> {{ "{:,}".format(content.shares or 0) }}
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Related ABX Ads -->
+            {% if content.abx_details %}
+            <div class="form-card mt-4">
+                <div class="form-card-header">
+                    <i class="fas fa-layer-group mr-2"></i>Existing ABX Ads ({{ content.abx_ad_count or 0 }})
+                </div>
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    {% for ad in content.abx_details[:5] %}
+                    <div class="bg-blue-50 rounded-lg p-3 text-sm">
+                        <div class="font-medium text-blue-800">{{ ad.ad_name }}</div>
+                        <div class="text-xs text-blue-600 mt-1">
+                            AdGroup: {{ ad.adgroup_name }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Right: Form -->
+        <div>
+            <!-- Advertiser Selection -->
+            <div class="form-card">
+                <div class="form-card-header">
+                    <i class="fas fa-building mr-2"></i>Advertiser
+                </div>
+                <select x-model="advertiserId" @change="onAdvertiserChange()" class="form-select">
+                    <option value="">-- Select Advertiser --</option>
+                    {% for adv in advertisers %}
+                    <option value="{{ adv.external_account_id }}">{{ adv.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- ABX AdGroup Selection -->
+            <div class="form-card" x-show="advertiserId" x-transition>
+                <div class="form-card-header">
+                    <i class="fas fa-layer-group mr-2"></i>Select ABX AdGroup
+                </div>
+                <div x-show="loadingAdgroups" class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-3xl text-gray-400"></i>
+                    <p class="text-gray-500 mt-2">กำลังโหลด AdGroups...</p>
+                </div>
+                
+                <div x-show="!loadingAdgroups && adgroups.length === 0" class="text-center py-8">
+                    <i class="fas fa-inbox text-4xl text-gray-300 mb-3"></i>
+                    <p class="text-gray-500">ไม่พบ ABX AdGroup สำหรับ Advertiser นี้</p>
+                    <p class="text-xs text-gray-400 mt-1">ABX AdGroup ต้องมี "_ABX_" อยู่ในชื่อ</p>
+                </div>
+                
+                <div x-show="!loadingAdgroups && adgroups.length > 0" class="space-y-3 max-h-80 overflow-y-auto">
+                    <template x-for="ag in adgroups" :key="ag.adgroup_id">
+                        <div 
+                            class="adgroup-card"
+                            :class="{ 'selected': selectedAdgroupId === ag.adgroup_id }"
+                            @click="selectAdgroup(ag)"
+                        >
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1 pr-4">
+                                    <div class="font-medium text-gray-800 text-sm" x-text="ag.adgroup_name"></div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        ID: <span x-text="ag.adgroup_id"></span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <span class="ad-count" x-text="(ag.ad_count || 0) + ' ads'"></span>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 mt-2 text-xs">
+                                <span class="px-2 py-1 rounded"
+                                      :class="ag.operation_status === 'ENABLE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                                      x-text="ag.operation_status || 'Unknown'"></span>
+                                <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded"
+                                      x-text="'Budget: ' + (ag.budget || 'N/A')"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- Ad Name -->
+            <div class="form-card" x-show="selectedAdgroupId" x-transition>
+                <div class="form-card-header">
+                    <i class="fas fa-tag mr-2"></i>Ad Name
+                </div>
+                <input type="text" x-model="adName" class="form-control" placeholder="Auto-generated">
+                <div class="name-preview mt-2" x-text="adName || '(จะสร้างอัตโนมัติ)'"></div>
+            </div>
+            
+            <!-- Submit Button -->
+            <button 
+                @click="createAd()" 
+                class="btn btn-primary btn-lg w-full"
+                :disabled="!canCreate || creating"
+                x-show="selectedAdgroupId"
+                x-transition
+            >
+                <i class="fas fa-plus mr-2"></i>
+                <span x-text="creating ? 'กำลังเพิ่ม...' : 'เพิ่ม Ad เข้า AdGroup'"></span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" x-show="creating" x-transition>
+        <div class="loading-spinner"></div>
+    </div>
+    
+    <!-- Toast Messages -->
+    <div x-show="toast.show" x-transition class="alert-toast">
+        <div :class="'alert alert-' + toast.type + ' shadow-lg'">
+            <i :class="toast.type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'" class="mr-2"></i>
+            <span x-text="toast.message"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+function abxCreateApp() {
+    return {
+        // Form data
+        contentId: {{ content.id }},
+        products: '{{ products }}',
+        itemId: '{{ content.platform_post_id }}',
+        
+        advertiserId: '',
+        selectedAdgroupId: '',
+        selectedAdgroup: null,
+        adName: '',
+        
+        // State
+        adgroups: [],
+        loadingAdgroups: false,
+        creating: false,
+        
+        // Toast
+        toast: { show: false, type: 'success', message: '' },
+        
+        // Computed
+        get canCreate() {
+            return this.advertiserId && this.selectedAdgroupId && this.adName;
+        },
+        
+        init() {
+            // Generate initial ad name
+            this.generateAdName();
+        },
+        
+        generateAdName() {
+            if (this.selectedAdgroup) {
+                // Format: [AdGroup Name] | [Item ID]
+                this.adName = this.selectedAdgroup.adgroup_name + ' | ' + this.itemId;
+            } else {
+                this.adName = '[AdGroup] | ' + this.itemId;
+            }
+        },
+        
+        async onAdvertiserChange() {
+            if (!this.advertiserId) {
+                this.adgroups = [];
+                this.selectedAdgroupId = '';
+                this.selectedAdgroup = null;
+                return;
+            }
+            
+            this.loadingAdgroups = true;
+            this.selectedAdgroupId = '';
+            this.selectedAdgroup = null;
+            
+            try {
+                const token = localStorage.getItem('access_token');
+                const resp = await fetch(`/api/v1/ads/adgroups/${this.advertiserId}`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await resp.json();
+                this.adgroups = data.data?.list || [];
+                
+            } catch (e) {
+                console.error('Error loading adgroups:', e);
+                this.showToast('โหลด AdGroups ไม่สำเร็จ', 'error');
+            } finally {
+                this.loadingAdgroups = false;
+            }
+        },
+        
+        selectAdgroup(ag) {
+            this.selectedAdgroupId = ag.adgroup_id;
+            this.selectedAdgroup = ag;
+            this.generateAdName();
+        },
+        
+        async createAd() {
+            if (!this.canCreate) return;
+            
+            this.creating = true;
+            try {
+                const token = localStorage.getItem('access_token');
+                
+                const resp = await fetch('/api/v1/ads/abx/create', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        advertiser_id: this.advertiserId,
+                        adgroup_id: this.selectedAdgroupId,
+                        content_id: this.contentId,
+                        ad_name: this.adName
+                    })
+                });
+                
+                const data = await resp.json();
+                
+                if (data.data?.success) {
+                    this.showToast('เพิ่ม Ad เข้า AdGroup สำเร็จ!', 'success');
+                    // Redirect back to content page after delay
+                    setTimeout(() => {
+                        window.location.href = '/master/contents/tiktok';
+                    }, 2000);
+                } else {
+                    this.showToast(data.data?.message || 'เพิ่ม Ad ไม่สำเร็จ', 'error');
+                }
+            } catch (e) {
+                console.error('Error creating ad:', e);
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.creating = false;
+            }
+        },
+        
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => { this.toast.show = false; }, 4000);
+        }
+    };
+}
+</script>
+{% endblock %}
+

@@ -1,0 +1,600 @@
+{% extends "layouts/app.html" %}
+
+{% block title %}Campaigns - WeBoostX{% endblock %}
+
+{% block content %}
+<div x-data="campaignsApp()" x-init="init()">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">🎯 Campaigns</h1>
+            <p class="text-gray-500 mt-1">จัดการ Campaigns ทั้งหมดใน TikTok Ads</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button @click="syncCampaigns()" class="btn btn-outline-primary" :disabled="syncing">
+                <i class="fas fa-sync mr-2" :class="syncing && 'fa-spin'"></i>
+                <span x-text="syncing ? 'กำลัง Sync...' : 'Sync from TikTok'"></span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                    <i class="fas fa-flag text-blue-600 text-xl"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-gray-800">{{ stats.total }}</div>
+                    <div class="text-sm text-gray-500">Total Campaigns</div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
+                    <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-gray-800">{{ stats.active }}</div>
+                    <div class="text-sm text-gray-500">Active</div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center">
+                    <i class="fas fa-play-circle text-purple-600 text-xl"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-gray-800">{{ stats.objective_counts.get('video_views', 0) }}</div>
+                    <div class="text-sm text-gray-500">Video Views</div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center">
+                    <i class="fas fa-shopping-cart text-orange-600 text-xl"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold text-gray-800">{{ stats.objective_counts.get('gmv_max', 0) }}</div>
+                    <div class="text-sm text-gray-500">GMV Max</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
+        <div class="flex flex-wrap items-center gap-4">
+            <!-- Search -->
+            <div class="flex-1 min-w-[250px]">
+                <div class="relative">
+                    <input type="text" x-model="filters.search" @input.debounce.300ms="applyFilters()"
+                           placeholder="ค้นหาชื่อ Campaign..."
+                           class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 text-sm">
+                    <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
+            </div>
+            
+            <!-- Objective Filter -->
+            <select x-model="filters.objective" @change="applyFilters()" class="px-4 py-2.5 border border-gray-200 rounded-xl text-sm">
+                <option value="">ทุก Objective</option>
+                <option value="video_views">Video Views</option>
+                <option value="gmv_max">GMV Max</option>
+                <option value="reach">Reach</option>
+                <option value="traffic">Traffic</option>
+                <option value="engagement">Engagement</option>
+                <option value="conversions">Conversions</option>
+            </select>
+            
+            <!-- Status Filter -->
+            <select x-model="filters.status" @change="applyFilters()" class="px-4 py-2.5 border border-gray-200 rounded-xl text-sm">
+                <option value="">ทุกสถานะ</option>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="deleted">Deleted</option>
+            </select>
+            
+            <!-- Naming Format Filter -->
+            <select x-model="filters.namingFormat" @change="applyFilters()" class="px-4 py-2.5 border border-gray-200 rounded-xl text-sm">
+                <option value="">ทุก Format</option>
+                <option value="v1">Legacy V1 (ACEBOOSTX)</option>
+                <option value="v2">New V2 (OBJ_BOOSTX)</option>
+                <option value="abx">ABX Allocate</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+        
+        <!-- Active Product Filter Badge -->
+        <div x-show="filters.products.length > 0" class="mt-3 flex items-center gap-2">
+            <span class="text-sm text-gray-500">Filter Products:</span>
+            <div class="flex flex-wrap gap-1">
+                <template x-for="code in filters.products" :key="code">
+                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium">
+                        <span x-text="code"></span>
+                    </span>
+                </template>
+                <button @click="clearProductFilter()" class="px-2 py-1 bg-red-100 text-red-600 rounded-lg text-xs hover:bg-red-200 transition-colors">
+                    <i class="fas fa-times mr-1"></i>ล้าง Filter
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Campaigns Table -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-100">
+                <tr>
+                    <th @click="sortBy('name')" class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none">
+                        <div class="flex items-center gap-1">
+                            Campaign Name
+                            <i class="fas" :class="getSortIcon('name')"></i>
+                        </div>
+                    </th>
+                    <th @click="sortBy('objective')" class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none">
+                        <div class="flex items-center gap-1">
+                            Objective
+                            <i class="fas" :class="getSortIcon('objective')"></i>
+                        </div>
+                    </th>
+                    <th @click="sortBy('products')" class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none">
+                        <div class="flex items-center gap-1">
+                            Products
+                            <i class="fas" :class="getSortIcon('products')"></i>
+                        </div>
+                    </th>
+                    <th @click="sortBy('format')" class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none">
+                        <div class="flex items-center gap-1">
+                            Format
+                            <i class="fas" :class="getSortIcon('format')"></i>
+                        </div>
+                    </th>
+                    <th @click="sortBy('daily_budget')" class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none">
+                        <div class="flex items-center justify-center gap-1">
+                            Budget
+                            <i class="fas" :class="getSortIcon('daily_budget')"></i>
+                        </div>
+                    </th>
+                    <th @click="sortBy('status')" class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100 select-none">
+                        <div class="flex items-center justify-center gap-1">
+                            Status
+                            <i class="fas" :class="getSortIcon('status')"></i>
+                        </div>
+                    </th>
+                    <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                <template x-for="camp in sortedCampaigns" :key="camp.id">
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <!-- Name -->
+                        <td class="px-4 py-3">
+                            <div class="font-medium text-gray-800 text-sm" x-text="camp.name"></div>
+                            <div class="text-xs text-gray-400 font-mono" x-text="'ID: ' + camp.external_campaign_id"></div>
+                        </td>
+                        
+                        <!-- Objective -->
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 rounded-lg text-xs font-medium"
+                                  :class="getObjectiveClass(camp.objective)"
+                                  x-text="getObjectiveLabel(camp.objective)"></span>
+                        </td>
+                        
+                        <!-- Products -->
+                        <td class="px-4 py-3">
+                            <button @click="filterByProducts(extractProducts(camp.name))" 
+                                    class="flex flex-wrap gap-1 hover:bg-blue-50 rounded-lg p-1 -m-1 transition-colors cursor-pointer group"
+                                    :title="'คลิกเพื่อ filter campaigns ที่มี ' + extractProducts(camp.name).join(', ')">
+                                <template x-for="code in extractProducts(camp.name)" :key="code">
+                                    <span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-mono group-hover:bg-blue-200 group-hover:text-blue-900" x-text="code"></span>
+                                </template>
+                            </button>
+                        </td>
+                        
+                        <!-- Naming Format -->
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 rounded text-xs font-medium"
+                                  :class="getNamingFormatClass(camp.name)"
+                                  x-text="detectNamingFormat(camp.name)"></span>
+                        </td>
+                        
+                        <!-- Budget -->
+                        <td class="px-4 py-3 text-center">
+                            <template x-if="camp.daily_budget">
+                                <div class="text-sm">
+                                    <span class="font-medium text-gray-800" x-text="'฿' + formatNumber(camp.daily_budget)"></span>
+                                    <span class="text-xs text-gray-400">/day</span>
+                                </div>
+                            </template>
+                            <template x-if="!camp.daily_budget && camp.lifetime_budget">
+                                <div class="text-sm">
+                                    <span class="font-medium text-gray-800" x-text="'฿' + formatNumber(camp.lifetime_budget)"></span>
+                                    <span class="text-xs text-gray-400">lifetime</span>
+                                </div>
+                            </template>
+                            <template x-if="!camp.daily_budget && !camp.lifetime_budget">
+                                <span class="text-gray-400 text-sm">-</span>
+                            </template>
+                        </td>
+                        
+                        <!-- Status -->
+                        <td class="px-4 py-3 text-center">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                  :class="getStatusClass(camp.status)"
+                                  x-text="camp.status"></span>
+                        </td>
+                        
+                        <!-- Actions -->
+                        <td class="px-4 py-3 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button @click="viewDetails(camp)" class="p-2 hover:bg-gray-100 rounded-lg text-gray-600" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <a :href="'https://ads.tiktok.com/i18n/perf?aadvid=' + camp.external_campaign_id" 
+                                   target="_blank" class="p-2 hover:bg-gray-100 rounded-lg text-gray-600" title="Open in TikTok">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                </template>
+                
+                <!-- Empty State -->
+                <tr x-show="sortedCampaigns.length === 0">
+                    <td colspan="7" class="px-4 py-12 text-center text-gray-500">
+                        <i class="fas fa-search text-4xl text-gray-300 mb-3"></i>
+                        <p>ไม่พบ Campaign ที่ตรงกับเงื่อนไข</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="mt-4 flex items-center justify-between">
+        <div class="text-sm text-gray-500">
+            แสดง <span class="font-medium" x-text="sortedCampaigns.length"></span> จาก <span class="font-medium" x-text="allCampaigns.length"></span> campaigns
+        </div>
+    </div>
+    
+    <!-- Detail Modal -->
+    <div x-show="showDetailModal" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden" @click.away="showDetailModal = false">
+            <div class="px-6 py-4 border-b flex items-center justify-between">
+                <h3 class="text-lg font-bold">Campaign Details</h3>
+                <button @click="showDetailModal = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[60vh]" x-show="selectedCampaign">
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs text-gray-500 uppercase">Campaign Name</label>
+                        <div class="font-mono text-sm bg-gray-50 p-3 rounded-lg" x-text="selectedCampaign?.name"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-500 uppercase">Campaign ID</label>
+                            <div class="font-mono text-sm" x-text="selectedCampaign?.external_campaign_id"></div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 uppercase">Objective</label>
+                            <div x-text="selectedCampaign?.objective"></div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 uppercase">Status</label>
+                            <div x-text="selectedCampaign?.status"></div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 uppercase">Naming Format</label>
+                            <div x-text="detectNamingFormat(selectedCampaign?.name || '')"></div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 uppercase">Daily Budget</label>
+                            <div x-text="selectedCampaign?.daily_budget ? '฿' + formatNumber(selectedCampaign.daily_budget) : '-'"></div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 uppercase">Created At</label>
+                            <div x-text="selectedCampaign?.created_at"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 uppercase">Extracted Products</label>
+                        <div class="flex flex-wrap gap-2 mt-1">
+                            <template x-for="code in extractProducts(selectedCampaign?.name || '')" :key="code">
+                                <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm font-mono" x-text="code"></span>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast -->
+    <div x-show="toast.show" x-transition 
+         class="fixed bottom-4 right-4 px-6 py-3 rounded-xl shadow-lg"
+         :class="toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'">
+        <span x-text="toast.message"></span>
+    </div>
+</div>
+
+<script>
+function campaignsApp() {
+    return {
+        allCampaigns: {{ campaigns | tojson | safe }},
+        filters: {
+            search: '',
+            objective: '',
+            status: '',
+            namingFormat: '',
+            products: [],
+        },
+        sortField: 'name',
+        sortDirection: 'asc',
+        syncing: false,
+        showDetailModal: false,
+        selectedCampaign: null,
+        toast: { show: false, type: 'success', message: '' },
+        
+        init() {
+            // Read filters from URL
+            this.readFiltersFromURL();
+        },
+        
+        readFiltersFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('products')) {
+                this.filters.products = params.get('products').split('+').filter(p => p);
+            }
+            if (params.has('objective')) {
+                this.filters.objective = params.get('objective');
+            }
+            if (params.has('status')) {
+                this.filters.status = params.get('status');
+            }
+            if (params.has('format')) {
+                this.filters.namingFormat = params.get('format');
+            }
+            if (params.has('search')) {
+                this.filters.search = params.get('search');
+            }
+            if (params.has('sort')) {
+                this.sortField = params.get('sort');
+            }
+            if (params.has('dir')) {
+                this.sortDirection = params.get('dir');
+            }
+        },
+        
+        updateURL() {
+            const params = new URLSearchParams();
+            if (this.filters.products.length > 0) {
+                params.set('products', this.filters.products.join('+'));
+            }
+            if (this.filters.objective) {
+                params.set('objective', this.filters.objective);
+            }
+            if (this.filters.status) {
+                params.set('status', this.filters.status);
+            }
+            if (this.filters.namingFormat) {
+                params.set('format', this.filters.namingFormat);
+            }
+            if (this.filters.search) {
+                params.set('search', this.filters.search);
+            }
+            if (this.sortField !== 'name') {
+                params.set('sort', this.sortField);
+            }
+            if (this.sortDirection !== 'asc') {
+                params.set('dir', this.sortDirection);
+            }
+            
+            const newURL = params.toString() ? `${window.location.pathname}?${params}` : window.location.pathname;
+            history.replaceState(null, '', newURL);
+        },
+        
+        get filteredCampaigns() {
+            return this.allCampaigns.filter(c => {
+                // Search filter
+                if (this.filters.search && !c.name.toLowerCase().includes(this.filters.search.toLowerCase())) {
+                    return false;
+                }
+                // Objective filter
+                if (this.filters.objective && c.objective !== this.filters.objective) {
+                    return false;
+                }
+                // Status filter
+                if (this.filters.status && c.status !== this.filters.status) {
+                    return false;
+                }
+                // Naming format filter
+                if (this.filters.namingFormat) {
+                    const format = this.detectNamingFormat(c.name);
+                    if (this.filters.namingFormat === 'v1' && format !== 'V1 Legacy') return false;
+                    if (this.filters.namingFormat === 'v2' && format !== 'V2 New') return false;
+                    if (this.filters.namingFormat === 'abx' && format !== 'ABX Allocate') return false;
+                    if (this.filters.namingFormat === 'other' && (format === 'V1 Legacy' || format === 'V2 New' || format === 'ABX Allocate')) return false;
+                }
+                // Product filter - exact match for product group
+                if (this.filters.products.length > 0) {
+                    const campProducts = this.extractProducts(c.name);
+                    // Check if arrays are equal (same products in same order)
+                    if (campProducts.length !== this.filters.products.length) return false;
+                    const sortedCamp = [...campProducts].sort();
+                    const sortedFilter = [...this.filters.products].sort();
+                    if (sortedCamp.join(',') !== sortedFilter.join(',')) return false;
+                }
+                return true;
+            });
+        },
+        
+        get sortedCampaigns() {
+            const sorted = [...this.filteredCampaigns];
+            
+            sorted.sort((a, b) => {
+                let aVal, bVal;
+                
+                switch (this.sortField) {
+                    case 'name':
+                        aVal = a.name || '';
+                        bVal = b.name || '';
+                        break;
+                    case 'objective':
+                        aVal = a.objective || '';
+                        bVal = b.objective || '';
+                        break;
+                    case 'products':
+                        aVal = this.extractProducts(a.name).join(',');
+                        bVal = this.extractProducts(b.name).join(',');
+                        break;
+                    case 'format':
+                        aVal = this.detectNamingFormat(a.name);
+                        bVal = this.detectNamingFormat(b.name);
+                        break;
+                    case 'daily_budget':
+                        aVal = a.daily_budget || 0;
+                        bVal = b.daily_budget || 0;
+                        break;
+                    case 'status':
+                        aVal = a.status || '';
+                        bVal = b.status || '';
+                        break;
+                    default:
+                        aVal = a.name || '';
+                        bVal = b.name || '';
+                }
+                
+                if (typeof aVal === 'string') {
+                    const cmp = aVal.localeCompare(bVal);
+                    return this.sortDirection === 'asc' ? cmp : -cmp;
+                } else {
+                    return this.sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+                }
+            });
+            
+            return sorted;
+        },
+        
+        sortBy(field) {
+            if (this.sortField === field) {
+                this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortField = field;
+                this.sortDirection = 'asc';
+            }
+            this.updateURL();
+        },
+        
+        getSortIcon(field) {
+            if (this.sortField !== field) return 'fa-sort text-gray-300';
+            return this.sortDirection === 'asc' ? 'fa-sort-up text-blue-600' : 'fa-sort-down text-blue-600';
+        },
+        
+        filterByProducts(products) {
+            if (!products || products.length === 0) return;
+            this.filters.products = [...products];
+            this.updateURL();
+        },
+        
+        clearProductFilter() {
+            this.filters.products = [];
+            this.updateURL();
+        },
+        
+        applyFilters() {
+            this.updateURL();
+        },
+        
+        extractProducts(name) {
+            if (!name) return [];
+            const matches = name.match(/\[([A-Za-z0-9]+)\]/g) || [];
+            return matches.map(m => m.replace(/[\[\]]/g, ''));
+        },
+        
+        detectNamingFormat(name) {
+            if (!name) return 'Unknown';
+            if (name.includes('_ACEBOOSTX_')) return 'V1 Legacy';
+            if (/_[A-Z]{2,4}_BOOSTX_/.test(name)) return 'V2 New';
+            if (name.includes('_ABX_ALLOCATE')) return 'ABX Allocate';
+            return 'Other';
+        },
+        
+        getNamingFormatClass(name) {
+            const format = this.detectNamingFormat(name);
+            if (format === 'V1 Legacy') return 'bg-amber-100 text-amber-700';
+            if (format === 'V2 New') return 'bg-green-100 text-green-700';
+            if (format === 'ABX Allocate') return 'bg-blue-100 text-blue-700';
+            return 'bg-gray-100 text-gray-600';
+        },
+        
+        getObjectiveLabel(obj) {
+            const labels = {
+                'video_views': 'Video Views',
+                'gmv_max': 'GMV Max',
+                'reach': 'Reach',
+                'traffic': 'Traffic',
+                'engagement': 'Engagement',
+                'conversions': 'Conversions',
+            };
+            return labels[obj] || obj || 'Unknown';
+        },
+        
+        getObjectiveClass(obj) {
+            const classes = {
+                'video_views': 'bg-purple-100 text-purple-700',
+                'gmv_max': 'bg-orange-100 text-orange-700',
+                'reach': 'bg-blue-100 text-blue-700',
+                'traffic': 'bg-green-100 text-green-700',
+                'engagement': 'bg-pink-100 text-pink-700',
+                'conversions': 'bg-red-100 text-red-700',
+            };
+            return classes[obj] || 'bg-gray-100 text-gray-600';
+        },
+        
+        getStatusClass(status) {
+            const classes = {
+                'active': 'bg-green-100 text-green-700',
+                'paused': 'bg-yellow-100 text-yellow-700',
+                'deleted': 'bg-red-100 text-red-700',
+            };
+            return classes[status] || 'bg-gray-100 text-gray-600';
+        },
+        
+        formatNumber(num) {
+            if (!num) return '0';
+            return new Intl.NumberFormat('th-TH').format(num);
+        },
+        
+        viewDetails(camp) {
+            this.selectedCampaign = camp;
+            this.showDetailModal = true;
+        },
+        
+        async syncCampaigns() {
+            this.syncing = true;
+            try {
+                // TODO: Implement sync from TikTok API
+                await new Promise(r => setTimeout(r, 2000));
+                this.showToast('Sync completed!', 'success');
+                window.location.reload();
+            } catch (e) {
+                this.showToast('Sync failed', 'error');
+            } finally {
+                this.syncing = false;
+            }
+        },
+        
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => { this.toast.show = false; }, 3000);
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -2,7 +2,7 @@
 Content API endpoints
 """
 import re
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -15,7 +15,10 @@ from app.models.enums import Platform, ContentStatus, ContentType
 from app.schemas.common import DataResponse, ListResponse
 from app.schemas.contents import TikTokImportRequest
 from app.services.tiktok_service import TikTokService
+from app.services.thumbnail_service import process_content_thumbnail
 from app.models.user import User
+from pydantic import BaseModel
+from app.services.naming_service import NamingService
 
 router = APIRouter(prefix="/contents", tags=["Contents"])
 
@@ -31,6 +34,7 @@ def get_contents(
     search: Optional[str] = None,
     creator: Optional[str] = None,
     expiring: Optional[str] = None,
+    products: Optional[str] = None,  # Comma-separated product codes
     db: Session = Depends(get_db)
 ):
     """Get contents with filtering and pagination"""
@@ -92,25 +96,56 @@ def get_contents(
             )
         )
     
+    # Filter by product codes (exact match - same products, same count)
+    if products:
+        product_list = sorted([p.strip() for p in products.split(',') if p.strip()])
+        if product_list:
+            from sqlalchemy import cast, func
+            from sqlalchemy.dialects.postgresql import JSONB, ARRAY
+            from sqlalchemy import String
+            # Exact match: content must have exactly these products (no more, no less)
+            # Compare sorted JSON arrays
+            query = query.filter(
+                cast(Content.product_codes, JSONB) == cast(product_list, JSONB)
+            )
+    
     # Get total count
     total = query.count()
     
-    # Apply pagination and ordering
-    contents = query.order_by(Content.created_at.desc())\
+    # Apply pagination and ordering - sort by platform_created_at (TikTok post date) DESC
+    contents = query.order_by(Content.platform_created_at.desc().nullslast())\
         .offset((page - 1) * page_size)\
         .limit(page_size)\
         .all()
     
+    # Build targeting template lookup for displaying names
+    from app.models.platform import TargetingTemplate
+    all_targeting_ids = set()
+    for c in contents:
+        if c.preferred_targeting_ids:
+            all_targeting_ids.update(c.preferred_targeting_ids)
+    
+    targeting_map = {}
+    if all_targeting_ids:
+        templates = db.query(TargetingTemplate).filter(
+            TargetingTemplate.id.in_(list(all_targeting_ids))
+        ).all()
+        targeting_map = {t.id: t.name for t in templates}
+    
     # Convert to dict
     data = []
     for c in contents:
+        # Use thumbnail service to get best available thumbnail URL
+        # (local if available, otherwise remote URL)
+        thumbnail_url = process_content_thumbnail(c)
+        
         data.append({
             "id": c.id,
             "platform": c.platform.value if c.platform else None,
             "platform_post_id": c.platform_post_id,
             "url": c.url,
             "caption": c.caption,
-            "thumbnail_url": c.thumbnail_url,
+            "thumbnail_url": thumbnail_url,
             "platform_created_at": c.platform_created_at.isoformat() if c.platform_created_at else None,
             "content_type": c.content_type.value if c.content_type else None,
             "content_source": c.content_source.value if c.content_source else None,
@@ -135,6 +170,8 @@ def get_contents(
             "ace_ad_count": c.ace_ad_count or 0,
             "abx_ad_count": c.abx_ad_count or 0,
             "product_codes": c.product_codes or [],
+            "preferred_targeting_ids": c.preferred_targeting_ids or [],
+            "targeting_names": [targeting_map.get(tid, f"ID:{tid}") for tid in (c.preferred_targeting_ids or [])],
             "boost_factor": float(c.boost_factor) if c.boost_factor else 1.0,
             "boost_start_date": c.boost_start_date.isoformat() if c.boost_start_date else None,
             "boost_end_date": c.boost_end_date.isoformat() if c.boost_end_date else None,
@@ -261,6 +298,88 @@ def recalculate_pfm(db: Session = Depends(get_db)):
     )
 
 
+# ============================================
+# Naming helpers for Boost / Ads creation
+# ============================================
+
+
+class BoostNamingRequest(BaseModel):
+    """ข้อมูล minimal สำหรับสร้างชื่อ campaign/adgroup/ad จาก content"""
+
+    product_codes: List[str] = []
+    objective_code: str = "VV"
+    strategy_code: Optional[str] = None
+    period_code: Optional[str] = None
+
+    structure_code: str = "ACE"  # ACE / ABX
+    content_style_code: Optional[str] = None  # SALE / BR / REV / ECOM / OTH
+    targeting_code: Optional[str] = None
+
+    content_code: Optional[str] = None  # เช่น C7606 หรือ item_id
+    angle_code: Optional[str] = None  # เช่น DOCTOR / REVIEW / UGC
+
+
+@router.post("/{content_id}/suggest-names")
+def suggest_boost_names(
+    content_id: int,
+    payload: BoostNamingRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    สร้างชื่อ default สำหรับ Campaign / AdGroup / Ad จาก content + ตัวเลือกเบื้องต้น
+
+    ใช้ตอนเปิด modal Boost ที่หน้า Content:
+    - frontend ส่ง product_codes / objective / structure / content_style / targeting ฯลฯ
+    - backend คืนชื่อที่ generate แล้วไปเติมใน input ให้ user แก้ไขต่อได้
+    """
+    content = (
+        db.query(Content)
+        .filter(Content.id == content_id, Content.deleted_at.is_(None))
+        .first()
+    )
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+
+    # ถ้า frontend ไม่ส่ง product_codes มา ให้ fallback จาก content.product_codes
+    product_codes = payload.product_codes or (content.product_codes or [])
+
+    campaign_name = NamingService.generate_campaign_name(
+        product_codes=product_codes,
+        objective_code=payload.objective_code,
+        strategy_code=payload.strategy_code,
+        period_code=payload.period_code,
+    )
+
+    adgroup_name = NamingService.generate_adgroup_name(
+        product_codes=product_codes,
+        structure_code=payload.structure_code,
+        content_style_code=payload.content_style_code,
+        targeting_code=payload.targeting_code,
+        index=1,
+    )
+
+    # สร้าง content_code default ถ้าไม่ได้ส่งมา
+    content_code = payload.content_code or f"C{content_id}"
+
+    ad_name = NamingService.generate_ad_name(
+        product_codes=product_codes,
+        structure_code=payload.structure_code,
+        targeting_code=payload.targeting_code,
+        content_code=content_code,
+        content_style_code=payload.content_style_code,
+        angle_code=payload.angle_code,
+    )
+
+    return DataResponse(
+        success=True,
+        data={
+            "campaign_name": campaign_name,
+            "adgroup_name": adgroup_name,
+            "ad_name": ad_name,
+        },
+    )
+
+
 _TIKTOK_ITEM_ID_RE = re.compile(r"video/(\d+)")
 _DIGITS_RE = re.compile(r"^\d+$")
 
@@ -356,7 +475,7 @@ def get_content(content_id: int, db: Session = Depends(get_db)):
             "platform_post_id": content.platform_post_id,
             "url": content.url,
             "caption": content.caption,
-            "thumbnail_url": content.thumbnail_url,
+            "thumbnail_url": process_content_thumbnail(content),
             "platform_created_at": content.platform_created_at.isoformat() if content.platform_created_at else None,
             "content_type": content.content_type.value if content.content_type else None,
             "content_source": content.content_source.value if content.content_source else None,
@@ -449,6 +568,19 @@ def update_content(
                 pass
         else:
             content.expire_date = None
+    
+    # Update preferred_targeting_ids (multi-select targeting templates)
+    if "preferred_targeting_ids" in payload:
+        targeting_ids = payload["preferred_targeting_ids"]
+        if targeting_ids and isinstance(targeting_ids, list):
+            # Validate that all IDs exist
+            from app.models import TargetingTemplate
+            valid_ids = [t.id for t in db.query(TargetingTemplate.id).filter(
+                TargetingTemplate.id.in_(targeting_ids)
+            ).all()]
+            content.preferred_targeting_ids = valid_ids
+        else:
+            content.preferred_targeting_ids = None
     
     db.commit()
     
@@ -587,28 +719,23 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
     """
     Refresh ads data from TikTok API (similar to old system's get_updated_ads_details)
     
-    This function:
-    1. Fetches real-time spend data from TikTok Report API
-    2. Fetches adgroup budget and status from TikTok AdGroup API
-    3. Updates content.ads_details, ads_total_cost, ace_ad_count, abx_ad_count
+    This function fetches real-time data from TikTok API and updates:
+    1. Spend data (lifetime spend per ad) - via Report API
+    2. Ad details (ad_name, adgroup_name, campaign_name, operation_status, etc.) - via Ad API
+    3. Adgroup details (budget, budget_mode, operation_status) - via Adgroup API
+    4. Updates content.ads_details, ads_total_cost, ace_ad_count, abx_ad_count in DB
     """
     from app.services.tiktok_ads_service import TikTokAdsService
     from app.models import ABXAdgroup
+    import concurrent.futures
     
     if not ads_details:
         return ads_details
     
-    # Get ABX adgroup IDs for ACE/ABX classification
-    abx_adgroup_ids = set()
-    abx_adgroups = db.query(ABXAdgroup.external_adgroup_id).all()
-    for row in abx_adgroups:
-        if row[0]:
-            abx_adgroup_ids.add(row[0])
-    
-    # Group ads by advertiser_id
+    # Group ads by advertiser_id and collect IDs
     advertiser_ads = {}
-    all_ad_ids = []
-    all_adgroup_ids = set()
+    all_ad_ids_by_advertiser = {}
+    all_adgroup_ids_by_advertiser = {}
     
     for ad in ads_details:
         advertiser_id = ad.get('advertiser_id')
@@ -618,49 +745,103 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
         if advertiser_id:
             if advertiser_id not in advertiser_ads:
                 advertiser_ads[advertiser_id] = []
+                all_ad_ids_by_advertiser[advertiser_id] = []
+                all_adgroup_ids_by_advertiser[advertiser_id] = set()
+            
             advertiser_ads[advertiser_id].append(ad)
-        
-        if adgroup_id:
-            all_adgroup_ids.add(adgroup_id)
-        if ad_id:
-            all_ad_ids.append(ad_id)
+            
+            if ad_id:
+                all_ad_ids_by_advertiser[advertiser_id].append(ad_id)
+            if adgroup_id:
+                all_adgroup_ids_by_advertiser[advertiser_id].add(adgroup_id)
     
-    # Use existing ads_total_cost from DB (synced hourly by cron)
-    # Don't reset it to 0!
-    total_ad_cost = float(content.ads_total_cost or 0)
+    total_ad_cost = 0.0
     ace_count = 0
     abx_count = 0
+    general_count = 0
     
     # Fetch real-time data from TikTok API for each advertiser
-    # Use optimized methods that fetch only specific ad_ids/adgroup_ids (MUCH FASTER!)
+    # Use ThreadPoolExecutor for parallel API calls (like old system)
     for advertiser_id, ads in advertiser_ads.items():
         if not advertiser_id:
             continue
         
-        # Collect unique adgroup_ids for this advertiser only
-        adgroup_ids_for_this = list(set(ad.get('adgroup_id') for ad in ads if ad.get('adgroup_id')))
-            
+        ad_ids_for_this = all_ad_ids_by_advertiser.get(advertiser_id, [])
+        adgroup_ids_for_this = list(all_adgroup_ids_by_advertiser.get(advertiser_id, []))
+        
+        # Initialize maps
+        ad_spend_map = {}
+        ad_details_map = {}
+        adgroup_map = {}
+        
         try:
-            # 1. Spend data: Use existing value from DB (synced by cron hourly)
-            #    TikTok Report API doesn't support filter by ad_id
-            ad_spend_map = {}  # Will use existing ad_total_cost from ads_details
+            # Parallel API calls for better performance
+            # NOTE: Use requests instead of httpx for Report API (httpx has issues with TikTok)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                # 1. Fetch lifetime spend for this advertiser (real-time!)
+                future_spend = executor.submit(
+                    TikTokAdsService.fetch_lifetime_spend_by_advertiser, 
+                    advertiser_id
+                )
+                
+                # 2. Fetch ad details (ad_name, campaign_name, adgroup_name, status, etc.)
+                future_ad_details = executor.submit(
+                    TikTokAdsService.fetch_ad_details_batch, 
+                    advertiser_id, 
+                    ad_ids_for_this
+                )
+                
+                # 3. Fetch adgroup details (budget, budget_mode, operation_status)
+                future_adgroup = executor.submit(
+                    TikTokAdsService.fetch_adgroup_details, 
+                    advertiser_id, 
+                    adgroup_ids_for_this
+                )
+                
+                # Wait for all to complete
+                ad_spend_map = future_spend.result()
+                ad_details_map = future_ad_details.result()
+                adgroup_map = future_adgroup.result()
             
-            # 2. Get adgroup details for SPECIFIC adgroup_ids only (fast! ~1-2 sec)
-            #    This gives us real-time budget and status!
-            adgroup_map = TikTokAdsService.fetch_adgroup_details(advertiser_id, adgroup_ids_for_this)
-            
-            # 3. Update each ad with real-time data
+            # Update each ad with real-time data
             for ad in ads:
                 ad_id = ad.get('ad_id')
                 adgroup_id = ad.get('adgroup_id')
                 
-                # Spend: Keep existing value from DB (synced hourly by cron)
-                # TikTok Report API doesn't support filter by ad_id
-                # Don't recalculate total_ad_cost - use content.ads_total_cost
-                old_cost = float(ad.get('ad_total_cost') or ad.get('spend') or 0)
-                ad['ad_total_cost'] = old_cost
+                # 1. Update spend (real-time from Report API)
+                # NOTE: Convert ad_id to string for comparison (TikTok API returns string IDs)
+                ad_id_str = str(ad_id) if ad_id else None
                 
-                # Update adgroup info
+                if ad_id_str and ad_id_str in ad_spend_map:
+                    spend = ad_spend_map[ad_id_str]
+                    ad['ad_total_cost'] = spend
+                    ad['spend'] = spend
+                    total_ad_cost += spend
+                    print(f"[refresh] Updated ad {ad_id_str} spend: {spend}")
+                else:
+                    # Keep existing value if not found in API response
+                    old_cost = float(ad.get('ad_total_cost') or ad.get('spend') or 0)
+                    ad['ad_total_cost'] = old_cost
+                    ad['spend'] = old_cost
+                    total_ad_cost += old_cost
+                    print(f"[refresh] ad {ad_id_str} NOT in spend_map, using old cost: {old_cost}")
+                
+                # 2. Update ad details (ad_name, campaign_name, adgroup_name, status, etc.)
+                if ad_id and ad_id in ad_details_map:
+                    ad_info = ad_details_map[ad_id]
+                    ad['ad_name'] = ad_info.get('ad_name') or ad.get('ad_name')
+                    ad['campaign_id'] = ad_info.get('campaign_id') or ad.get('campaign_id')
+                    ad['campaign_name'] = ad_info.get('campaign_name') or ad.get('campaign_name')
+                    ad['adgroup_id'] = ad_info.get('adgroup_id') or ad.get('adgroup_id')
+                    ad['adgroup_name'] = ad_info.get('adgroup_name') or ad.get('adgroup_name')
+                    ad['operation_status'] = ad_info.get('operation_status') or ad.get('operation_status')
+                    ad['secondary_status'] = ad_info.get('secondary_status') or ad.get('secondary_status')
+                    ad['display_name'] = ad_info.get('display_name') or ad.get('display_name')
+                    ad['create_time'] = ad_info.get('create_time') or ad.get('create_time')
+                    ad['modify_time'] = ad_info.get('modify_time') or ad.get('modify_time')
+                    ad['tiktok_item_id'] = ad_info.get('tiktok_item_id') or ad.get('tiktok_item_id')
+                
+                # 3. Update adgroup info (budget, budget_mode, status)
                 if adgroup_id and adgroup_id in adgroup_map:
                     ag_info = adgroup_map[adgroup_id]
                     budget = ag_info.get('budget', 0)
@@ -670,13 +851,13 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
                     ad['adgroup_budget'] = budget
                     ad['adgroup_budget_mode'] = ag_info.get('budget_mode')
                     ad['adgroup_status'] = ag_info.get('operation_status')
-                    ad['operation_status'] = ag_info.get('operation_status')
-                    ad['secondary_status'] = ag_info.get('secondary_status')
+                    # Update operation_status from adgroup if not already set from ad_details
+                    if not ad.get('operation_status'):
+                        ad['operation_status'] = ag_info.get('operation_status')
+                    if not ad.get('secondary_status'):
+                        ad['secondary_status'] = ag_info.get('secondary_status')
                 
-                # Classify ACE/ABX/General based on ad_name pattern
-                # ACE: ad_name contains "_ACE_" (created by our system, 1 adgroup = 1 content)
-                # ABX: ad_name contains "_ABX_" (created by our system, 1 adgroup = N contents)
-                # General: no pattern found (created directly in TikTok Ads Manager)
+                # 4. Classify ACE/ABX/General based on name patterns
                 ad_name = (ad.get('ad_name') or '').upper()
                 campaign_name = (ad.get('campaign_name') or '').upper()
                 adgroup_name = (ad.get('adgroup_name') or '').upper()
@@ -684,37 +865,40 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
                 if '_ABX_' in ad_name or '_ABX_' in campaign_name or '_ABX_' in adgroup_name:
                     ad['type'] = 'ABX'
                     abx_count += 1
-                elif '_ACE_' in ad_name or '_ACE_' in campaign_name or '_ACE_' in adgroup_name:
+                elif '_ACE_' in ad_name or '_ACE_' in campaign_name or '_ACE_' in adgroup_name or '_ACEBOOSTX_' in campaign_name:
                     ad['type'] = 'ACE'
                     ace_count += 1
                 else:
-                    # General: ads created directly in TikTok Ads Manager (not through our system)
                     ad['type'] = 'GENERAL'
-                    # Don't count as ACE or ABX
+                    general_count += 1
                     
         except Exception as e:
-            print(f"Error fetching data for advertiser {advertiser_id}: {e}")
+            print(f"[refresh_tiktok_ads_data] Error fetching data for advertiser {advertiser_id}: {e}")
             # Still classify ads even if API fails - use name-based detection
             for ad in ads:
                 ad_name = (ad.get('ad_name') or '').upper()
                 campaign_name = (ad.get('campaign_name') or '').upper()
                 adgroup_name = (ad.get('adgroup_name') or '').upper()
                 
+                # Keep existing spend
+                old_cost = float(ad.get('ad_total_cost') or ad.get('spend') or 0)
+                total_ad_cost += old_cost
+                
                 if '_ABX_' in ad_name or '_ABX_' in campaign_name or '_ABX_' in adgroup_name:
                     ad['type'] = 'ABX'
                     abx_count += 1
-                elif '_ACE_' in ad_name or '_ACE_' in campaign_name or '_ACE_' in adgroup_name:
+                elif '_ACE_' in ad_name or '_ACE_' in campaign_name or '_ACE_' in adgroup_name or '_ACEBOOSTX_' in campaign_name:
                     ad['type'] = 'ACE'
                     ace_count += 1
                 else:
                     ad['type'] = 'GENERAL'
+                    general_count += 1
     
     # Update content in database
-    # Keep existing ads_total_cost from DB (synced hourly by cron)
-    # Only update counts, details, and adgroup info (budget, status)
     content.ads_count = len(ads_details)
     content.ace_ad_count = ace_count
     content.abx_ad_count = abx_count
+    content.ads_total_cost = total_ad_cost
     content.ace_details = [ad for ad in ads_details if ad.get('type') == 'ACE'] or None
     content.abx_details = [ad for ad in ads_details if ad.get('type') == 'ABX'] or None
     
@@ -724,8 +908,8 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
     db.commit()
     
     print(f"[refresh_tiktok_ads_data] Updated content {content.id}: "
-          f"total_cost={total_ad_cost:.2f} (from DB), ads={len(ads_details)}, "
-          f"ACE={ace_count}, ABX={abx_count}")
+          f"total_cost=฿{total_ad_cost:,.2f}, ads={len(ads_details)}, "
+          f"ACE={ace_count}, ABX={abx_count}, General={general_count}")
     
     return ads_details
 

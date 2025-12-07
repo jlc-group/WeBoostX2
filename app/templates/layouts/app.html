@@ -318,6 +318,57 @@
 </div>
 
 <script>
+// Global API helper with auto-refresh token
+window.apiRequest = async function(url, options = {}) {
+    const token = localStorage.getItem('access_token');
+    
+    // Add auth header
+    options.headers = {
+        ...options.headers,
+        'Authorization': 'Bearer ' + token
+    };
+    
+    let resp = await fetch(url, options);
+    
+    // If 401, try to refresh token
+    if (resp.status === 401) {
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (refreshToken) {
+            try {
+                const refreshResp = await fetch('/api/v1/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh_token: refreshToken })
+                });
+                
+                if (refreshResp.ok) {
+                    const data = await refreshResp.json();
+                    // Save new tokens
+                    localStorage.setItem('access_token', data.data.access_token);
+                    localStorage.setItem('refresh_token', data.data.refresh_token);
+                    
+                    // Retry original request with new token
+                    options.headers['Authorization'] = 'Bearer ' + data.data.access_token;
+                    resp = await fetch(url, options);
+                } else {
+                    // Refresh failed, redirect to login
+                    window.location.href = '/login';
+                    return null;
+                }
+            } catch (e) {
+                console.error('Token refresh failed:', e);
+                window.location.href = '/login';
+                return null;
+            }
+        } else {
+            window.location.href = '/login';
+            return null;
+        }
+    }
+    
+    return resp;
+};
+
 function appLayout() {
     return {
         sidebarOpen: true,

@@ -180,6 +180,7 @@ def run_task_now(
     - sync_all_ads
     - sync_tiktok_content
     - refresh_tiktok_organic
+    - sync_campaigns_adgroups
     """
 
     from app.tasks import sync_tasks
@@ -200,6 +201,9 @@ def run_task_now(
     elif task_name == "refresh_tiktok_organic":
         r = sync_tasks.refresh_tiktok_organic()
         result = {"task": "refresh_tiktok_organic", **r}
+    elif task_name == "sync_campaigns_adgroups":
+        r = sync_tasks.sync_campaigns_adgroups()
+        result = {"task": "sync_campaigns_adgroups", **r}
     else:
         return DataResponse(
             success=False,

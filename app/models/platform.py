@@ -1,7 +1,18 @@
 """
 Platform and Ad Account models
 """
-from sqlalchemy import Column, Integer, String, Boolean, Enum, Text, Date, JSON, ForeignKey
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    Enum,
+    Text,
+    Date,
+    JSON,
+    ForeignKey,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from app.models.base import BaseModel, SoftDeleteMixin
@@ -36,12 +47,19 @@ class AdAccount(BaseModel):
     
     # Relationships
     campaigns = relationship("Campaign", back_populates="ad_account")
+    ad_groups = relationship("AdGroup", back_populates="ad_account")
+    ads = relationship("Ad", back_populates="ad_account")
     contents = relationship("Content", back_populates="ad_account")
     
     class Config:
         # Unique constraint: one external account per platform
         __table_args__ = (
-            {"extend_existing": True}
+            UniqueConstraint(
+                "platform",
+                "external_account_id",
+                name="uq_ad_accounts_platform_external",
+            ),
+            {"extend_existing": True},
         )
 
 

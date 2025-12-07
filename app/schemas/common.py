@@ -17,6 +17,7 @@ class ResponseBase(BaseModel):
 class DataResponse(ResponseBase, Generic[T]):
     """Response with data"""
     data: Optional[T] = None
+    meta: Optional[Any] = None  # Additional metadata
 
 
 class ListResponse(ResponseBase, Generic[T]):

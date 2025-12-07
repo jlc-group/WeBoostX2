@@ -349,6 +349,177 @@ def sync_facebook_ads() -> dict:
     return {"processed": 0, "success": 0, "failed": 0}
 
 
+def sync_campaigns_adgroups() -> dict:
+    """
+    Sync Campaigns & AdGroups จาก TikTok API เข้า DB โดยตรง
+    
+    สำหรับใช้กับหน้า Create Ads ให้โหลดเร็วขึ้น (query จาก DB แทน API)
+    
+    Flow:
+    1. ดึง campaigns ทุก ad account → upsert เข้า campaigns table
+    2. ดึง adgroups ทุก ad account → upsert เข้า ad_groups table
+    """
+    from datetime import timezone
+    from app.models import AdAccount, Campaign, AdGroup
+    from app.models.enums import AdAccountStatus, AdStatus
+    
+    task = log_task_start("sync_campaigns_adgroups", "sync")
+    
+    db = SessionLocal()
+    try:
+        # Get all active TikTok ad accounts
+        ad_accounts = (
+            db.query(AdAccount)
+            .filter(
+                AdAccount.platform == PlatformEnum.TIKTOK,
+                AdAccount.status == AdAccountStatus.ACTIVE,
+            )
+            .all()
+        )
+        
+        if not ad_accounts:
+            log_task_complete(task.id, True, "No active TikTok ad accounts found", 0, 0, 0)
+            return {"campaigns": 0, "adgroups": 0}
+        
+        total_campaigns = 0
+        total_adgroups = 0
+        
+        def truncate(value, max_len=255):
+            if value is None:
+                return None
+            s = str(value)
+            return s if len(s) <= max_len else s[:max_len]
+        
+        def map_status(operation_status):
+            if operation_status == "ENABLE":
+                return AdStatus.ACTIVE
+            elif operation_status == "DISABLE":
+                return AdStatus.PAUSED
+            return AdStatus.ACTIVE
+        
+        for ad_account in ad_accounts:
+            print(f"  [{ad_account.name}] Syncing campaigns & adgroups...")
+            
+            # === Sync Campaigns ===
+            campaigns_raw = TikTokAdsService.fetch_campaigns(ad_account.external_account_id)
+            camp_created = 0
+            
+            for camp_data in campaigns_raw:
+                campaign_id = camp_data.get("campaign_id")
+                if not campaign_id:
+                    continue
+                
+                campaign = (
+                    db.query(Campaign)
+                    .filter(
+                        Campaign.platform == PlatformEnum.TIKTOK,
+                        Campaign.ad_account_id == ad_account.id,
+                        Campaign.external_campaign_id == campaign_id,
+                    )
+                    .first()
+                )
+                
+                if not campaign:
+                    campaign = Campaign(
+                        platform=PlatformEnum.TIKTOK,
+                        ad_account_id=ad_account.id,
+                        external_campaign_id=campaign_id,
+                        name=truncate(camp_data.get("campaign_name") or f"Campaign {campaign_id}"),
+                    )
+                    db.add(campaign)
+                    camp_created += 1
+                else:
+                    if camp_data.get("campaign_name"):
+                        campaign.name = truncate(camp_data["campaign_name"])
+                
+                campaign.objective_raw = camp_data.get("objective_type")
+                campaign.status = map_status(camp_data.get("operation_status"))
+                campaign.daily_budget = camp_data.get("budget")
+                campaign.last_synced_at = datetime.now(timezone.utc)
+            
+            db.commit()
+            total_campaigns += len(campaigns_raw)
+            
+            # === Sync AdGroups ===
+            adgroups_raw = TikTokAdsService.fetch_adgroups(ad_account.external_account_id)
+            
+            # Pre-load campaigns for mapping
+            campaigns = (
+                db.query(Campaign)
+                .filter(
+                    Campaign.ad_account_id == ad_account.id,
+                    Campaign.platform == PlatformEnum.TIKTOK,
+                )
+                .all()
+            )
+            campaign_map = {c.external_campaign_id: c for c in campaigns}
+            
+            ag_created = 0
+            ag_skipped = 0
+            
+            for ag_data in adgroups_raw:
+                adgroup_id = ag_data.get("adgroup_id")
+                campaign_ext_id = ag_data.get("campaign_id")
+                
+                if not adgroup_id or not campaign_ext_id:
+                    continue
+                
+                campaign = campaign_map.get(campaign_ext_id)
+                if not campaign:
+                    ag_skipped += 1
+                    continue
+                
+                adgroup = (
+                    db.query(AdGroup)
+                    .filter(
+                        AdGroup.platform == PlatformEnum.TIKTOK,
+                        AdGroup.campaign_id == campaign.id,
+                        AdGroup.external_adgroup_id == adgroup_id,
+                    )
+                    .first()
+                )
+                
+                if not adgroup:
+                    adgroup = AdGroup(
+                        platform=PlatformEnum.TIKTOK,
+                        ad_account_id=ad_account.id,
+                        campaign_id=campaign.id,
+                        external_adgroup_id=adgroup_id,
+                        name=truncate(ag_data.get("adgroup_name") or f"AdGroup {adgroup_id}"),
+                    )
+                    db.add(adgroup)
+                    ag_created += 1
+                else:
+                    if ag_data.get("adgroup_name"):
+                        adgroup.name = truncate(ag_data["adgroup_name"])
+                
+                adgroup.optimization_goal_raw = ag_data.get("optimization_goal")
+                adgroup.status = map_status(ag_data.get("operation_status"))
+                adgroup.daily_budget = ag_data.get("budget")
+                adgroup.last_synced_at = datetime.now(timezone.utc)
+            
+            db.commit()
+            total_adgroups += len(adgroups_raw)
+            
+            print(f"    Campaigns: {len(campaigns_raw)} ({camp_created} new)")
+            print(f"    AdGroups: {len(adgroups_raw)} ({ag_created} new, {ag_skipped} skipped)")
+        
+        msg = f"Synced {total_campaigns} campaigns, {total_adgroups} adgroups from {len(ad_accounts)} accounts"
+        log_task_complete(task.id, True, msg, total_campaigns + total_adgroups, total_campaigns + total_adgroups, 0)
+        
+        return {
+            "campaigns": total_campaigns,
+            "adgroups": total_adgroups,
+            "accounts": len(ad_accounts),
+        }
+        
+    except Exception as e:
+        log_task_complete(task.id, False, str(e))
+        raise
+    finally:
+        db.close()
+
+
 def sync_ads_spend_data():
     """
     Sync ads spend data from TikTok Report API (Lifetime spend)

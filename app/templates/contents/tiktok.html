@@ -41,6 +41,20 @@
             </div>
             
             <!-- Active Filter Badges -->
+            <!-- Products Filter -->
+            <div x-show="filters.products && filters.products.length > 0" class="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-xl text-sm">
+                <span>Products:</span>
+                <div class="flex flex-wrap gap-1">
+                    <template x-for="code in filters.products" :key="code">
+                        <span class="font-mono font-bold bg-green-100 px-1.5 py-0.5 rounded" x-text="code"></span>
+                    </template>
+                </div>
+                <button @click="clearProductFilter()" class="hover:bg-green-100 rounded p-0.5 ml-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
             <!-- Creator Filter -->
             <div x-show="filters.creator" class="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm">
                 <span>Creator:</span>
@@ -277,7 +291,12 @@
                                 <svg x-show="sortField === 'pfm_score'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             </span>
                         </th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Products</th>
+                        <th @click="sortBy('products')" class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
+                            <span class="flex items-center gap-1">
+                                Products / Targeting
+                                <svg x-show="sortField === 'products'" class="w-3 h-3" :class="sortDir === 'desc' ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </span>
+                        </th>
                         <th @click="sortBy('ads_count')" class="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100">
                             <span class="flex items-center justify-center gap-1">
                                 Ads
@@ -411,21 +430,43 @@
                                 </span>
                             </td>
                             
-                            <!-- Products -->
+                            <!-- Products / Targeting -->
                             <td class="px-4 py-3">
-                                <template x-if="content.product_codes && content.product_codes.length > 0">
-                                    <div class="flex flex-wrap gap-1">
-                                        <template x-for="code in content.product_codes.slice(0, 3)" :key="code">
-                                            <span class="inline-flex px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium" x-text="code"></span>
+                                <div class="space-y-1.5">
+                                    <!-- Products Row -->
+                                    <div class="flex flex-wrap gap-1 items-center">
+                                        <span class="text-[10px] text-gray-400 w-8">📦</span>
+                                        <template x-if="content.product_codes && content.product_codes.length > 0">
+                                            <button @click="filterByProducts(content.product_codes)" 
+                                                    class="flex flex-wrap gap-1 hover:bg-blue-100 rounded p-0.5 -m-0.5 transition-colors cursor-pointer group"
+                                                    :title="'Filter: ' + content.product_codes.join(', ')">
+                                                <template x-for="code in content.product_codes" :key="code">
+                                                    <span class="inline-flex px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[11px] font-medium group-hover:bg-blue-200"
+                                                          x-text="code"></span>
+                                                </template>
+                                            </button>
                                         </template>
-                                        <template x-if="content.product_codes.length > 3">
-                                            <span class="inline-flex px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs" x-text="'+' + (content.product_codes.length - 3)"></span>
+                                        <template x-if="!content.product_codes || content.product_codes.length === 0">
+                                            <span class="text-[11px] text-gray-300">-</span>
                                         </template>
                                     </div>
-                                </template>
-                                <template x-if="!content.product_codes || content.product_codes.length === 0">
-                                    <span class="text-xs text-gray-400">-</span>
-                                </template>
+                                    <!-- Targeting Row -->
+                                    <div class="flex flex-wrap gap-1 items-center">
+                                        <span class="text-[10px] text-gray-400 w-8">🎯</span>
+                                        <template x-if="content.preferred_targeting_ids && content.preferred_targeting_ids.length > 0">
+                                            <div class="flex flex-wrap gap-1">
+                                                <template x-for="tid in content.preferred_targeting_ids" :key="tid">
+                                                    <span class="inline-flex px-1.5 py-0.5 bg-teal-50 text-teal-700 rounded text-[10px] font-medium"
+                                                          :title="getTargetingFullName(tid)"
+                                                          x-text="getTargetingShortName(tid)"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!content.preferred_targeting_ids || content.preferred_targeting_ids.length === 0">
+                                            <span class="text-[11px] text-gray-300 italic">ยังไม่ได้กำหนด</span>
+                                        </template>
+                                    </div>
+                                </div>
                             </td>
                             
                             <!-- Ads Count -->
@@ -451,13 +492,13 @@
                                     <template x-if="content.influencer_cost > 0">
                                         <div class="flex items-center justify-end gap-1 text-pink-600">
                                             <span class="text-[10px] text-gray-400">Influ:</span>
-                                            <span class="font-medium" x-text="'฿' + formatNumber(content.influencer_cost)"></span>
+                                            <span class="font-medium" x-text="'฿' + formatMoney(content.influencer_cost)"></span>
                                         </div>
                                     </template>
                                     <template x-if="content.ads_total_cost > 0">
                                         <div class="flex items-center justify-end gap-1 text-green-600">
                                             <span class="text-[10px] text-gray-400">Ads:</span>
-                                            <span class="font-medium" x-text="'฿' + formatNumber(content.ads_total_cost)"></span>
+                                            <span class="font-medium" x-text="'฿' + formatMoney(content.ads_total_cost)"></span>
                                         </div>
                                     </template>
                                     <template x-if="!content.influencer_cost && !content.ads_total_cost">
@@ -506,6 +547,33 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                                         </svg>
                                     </button>
+                                    
+                                    <!-- Create Ad Dropdown -->
+                                    <div class="relative" x-data="{ open: false }">
+                                        <button @click="open = !open" 
+                                                class="p-2 hover:bg-green-50 rounded-lg transition-colors text-green-600"
+                                                title="Create Ad">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                            </svg>
+                                        </button>
+                                        <div x-show="open" @click.away="open = false"
+                                             x-transition:enter="transition ease-out duration-100"
+                                             x-transition:enter-start="opacity-0 scale-95"
+                                             x-transition:enter-end="opacity-100 scale-100"
+                                             x-transition:leave="transition ease-in duration-75"
+                                             x-transition:leave-start="opacity-100 scale-100"
+                                             x-transition:leave-end="opacity-0 scale-95"
+                                             class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 z-50 py-1">
+                                            <a :href="'/ads/create?content_id=' + content.id" 
+                                               class="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
+                                                <span class="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center">
+                                                    <i class="fas fa-plus text-xs text-indigo-700"></i>
+                                                </span>
+                                                <span>สร้างโฆษณา</span>
+                                            </a>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -616,12 +684,162 @@
                     </div>
                 </div>
                 
-                <!-- Products -->
+                <!-- Products (Multi-select) -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Products (รหัสสินค้า)</label>
-                    <input type="text" x-model="editForm.products" 
-                           class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm"
-                           placeholder="เช่น JL001, JL002 (คั่นด้วย comma)">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Products (รหัสสินค้า)
+                        <span class="text-xs text-gray-400 ml-2" x-show="editForm.selectedProducts.length > 0">
+                            (<span x-text="editForm.selectedProducts.length"></span> รายการ)
+                        </span>
+                    </label>
+                    
+                    <!-- Selected Products Tags -->
+                    <div class="flex flex-wrap gap-2 mb-2" x-show="editForm.selectedProducts.length > 0">
+                        <template x-for="code in editForm.selectedProducts" :key="code">
+                            <span class="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-xs">
+                                <span class="font-mono font-bold" x-text="code"></span>
+                                <span class="text-blue-600" x-text="getProductName(code)"></span>
+                                <button type="button" @click="removeProduct(code)" class="text-blue-400 hover:text-red-600 ml-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </span>
+                        </template>
+                    </div>
+                    
+                    <!-- Search Input -->
+                    <div class="relative">
+                        <div class="flex items-center gap-2">
+                            <input type="text" x-model="productSearch"
+                                   @focus="productSearchFocused = true"
+                                   class="flex-1 border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm"
+                                   placeholder="คลิกเพื่อค้นหาและเลือกสินค้า...">
+                            <button type="button" 
+                                    x-show="productSearchFocused"
+                                    @click="productSearchFocused = false; productSearch = ''"
+                                    class="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 bg-gray-100 rounded-xl">
+                                ปิด
+                            </button>
+                        </div>
+                        
+                        <!-- Dropdown (แสดงเมื่อ focus เท่านั้น) -->
+                        <div x-show="productSearchFocused" 
+                             x-transition
+                             class="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                            <!-- หัวข้อแสดงจำนวนที่เลือก -->
+                            <div class="sticky top-0 bg-gray-50 px-4 py-2 border-b text-xs text-gray-500">
+                                เลือกแล้ว <span class="font-bold text-blue-600" x-text="editForm.selectedProducts.length"></span> รายการ
+                                <span class="text-gray-400 ml-2">(คลิกเลือกได้หลายรายการ)</span>
+                            </div>
+                            <template x-for="prod in filteredProducts()" :key="prod.code">
+                                <button type="button"
+                                        @click.stop="toggleProduct(prod.code)"
+                                        class="w-full px-4 py-2 text-left hover:bg-blue-50 flex items-center justify-between text-sm border-b border-gray-50"
+                                        :class="isProductSelected(prod.code) ? 'bg-blue-50' : ''">
+                                    <div>
+                                        <span class="font-mono font-medium" x-text="prod.code"></span>
+                                        <span class="text-gray-500 ml-2" x-text="prod.name"></span>
+                                    </div>
+                                    <span x-show="isProductSelected(prod.code)" class="text-blue-600">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </span>
+                                </button>
+                            </template>
+                            <div x-show="allProducts.length === 0" class="px-4 py-3 text-sm text-gray-500">
+                                กำลังโหลด...
+                            </div>
+                            <div x-show="filteredProducts().length === 0 && productSearch" class="px-4 py-3 text-sm text-gray-500">
+                                ไม่พบสินค้าที่ค้นหา
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Preferred Targeting (Multi-select like Select2) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Preferred Targeting
+                        <span class="text-xs text-gray-400 ml-2" x-show="editForm.selectedTargetingIds.length > 0">
+                            (<span x-text="editForm.selectedTargetingIds.length"></span> รายการ)
+                        </span>
+                    </label>
+                    <p class="text-xs text-gray-500 mb-2">
+                        กำหนด Targeting ที่ Content นี้เหมาะสม (บังคับก่อนสร้าง Ad)
+                    </p>
+                    
+                    <!-- Selected Targeting Tags -->
+                    <div class="flex flex-wrap gap-2 mb-2" x-show="editForm.selectedTargetingIds.length > 0">
+                        <template x-for="id in editForm.selectedTargetingIds" :key="id">
+                            <span class="inline-flex items-center gap-2 px-3 py-1.5 bg-teal-100 text-teal-800 rounded-lg text-xs">
+                                <span class="font-medium" x-text="getTargetingName(id)"></span>
+                                <span class="text-teal-600 font-mono" x-text="getTargetingCode(id)"></span>
+                                <button type="button" @click="toggleTargeting(id)" class="text-teal-400 hover:text-red-600 ml-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </span>
+                        </template>
+                    </div>
+                    
+                    <!-- Search Input -->
+                    <div class="relative">
+                        <div class="flex items-center gap-2">
+                            <input type="text" x-model="targetingSearch"
+                                   @focus="targetingSearchFocused = true"
+                                   class="flex-1 border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-teal-500 text-sm"
+                                   placeholder="คลิกเพื่อค้นหาและเลือก Targeting...">
+                            <button type="button" 
+                                    x-show="targetingSearchFocused"
+                                    @click="targetingSearchFocused = false; targetingSearch = ''"
+                                    class="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 bg-gray-100 rounded-xl">
+                                ปิด
+                            </button>
+                        </div>
+                        
+                        <!-- Dropdown -->
+                        <div x-show="targetingSearchFocused" 
+                             x-transition
+                             class="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                            <!-- หัวข้อแสดงจำนวนที่เลือก -->
+                            <div class="sticky top-0 bg-gray-50 px-4 py-2 border-b text-xs text-gray-500">
+                                เลือกแล้ว <span class="font-bold text-teal-600" x-text="editForm.selectedTargetingIds.length"></span> รายการ
+                                <span class="text-gray-400 ml-2">(คลิกเลือกได้หลายรายการ)</span>
+                            </div>
+                            <template x-for="tpl in filteredTargeting()" :key="tpl.id">
+                                <button type="button"
+                                        @click.stop="toggleTargeting(tpl.id)"
+                                        class="w-full px-4 py-2 text-left hover:bg-teal-50 flex items-center justify-between text-sm border-b border-gray-50"
+                                        :class="isTargetingSelected(tpl.id) ? 'bg-teal-50' : ''">
+                                    <div>
+                                        <span class="font-medium" x-text="tpl.name"></span>
+                                        <span class="text-gray-500 font-mono text-xs ml-2" x-text="tpl.targeting_code"></span>
+                                    </div>
+                                    <span x-show="isTargetingSelected(tpl.id)" class="text-teal-600">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                        </svg>
+                                    </span>
+                                </button>
+                            </template>
+                            <div x-show="targetingTemplates.length === 0" class="px-4 py-3 text-sm text-gray-500">
+                                กำลังโหลด...
+                            </div>
+                            <div x-show="filteredTargeting().length === 0 && targetingSearch" class="px-4 py-3 text-sm text-gray-500">
+                                ไม่พบ Targeting ที่ค้นหา
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p x-show="editForm.selectedTargetingIds.length === 0" class="text-xs text-amber-600 mt-2">
+                        <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        ต้องเลือก Targeting อย่างน้อย 1 รายการก่อนสร้าง Ad
+                    </p>
                 </div>
                 
                 <!-- Content Type -->
@@ -739,7 +957,7 @@
                         <p class="text-xs text-gray-600">General</p>
                     </div>
                     <div class="bg-green-50 rounded-xl p-3 text-center">
-                        <p class="text-xl font-bold text-green-600" x-text="'฿' + formatNumber(adsContent?.ads_total_cost || 0)"></p>
+                        <p class="text-xl font-bold text-green-600" x-text="'฿' + formatMoney(adsContent?.ads_total_cost || 0)"></p>
                         <p class="text-xs text-green-600">Total Cost</p>
                     </div>
                 </div>
@@ -790,12 +1008,12 @@
                             <div class="grid grid-cols-4 gap-3 text-sm">
                                 <div class="bg-gray-50 rounded-lg p-2 text-center">
                                     <p class="text-xs text-gray-500">Budget</p>
-                                    <p class="font-semibold text-gray-800" x-text="'฿' + formatNumber(ad.budget || 0)"></p>
+                                    <p class="font-semibold text-gray-800" x-text="'฿' + formatMoney(ad.budget || 0)"></p>
                                     <p class="text-[10px] text-gray-400" x-text="ad.budget_mode === 'BUDGET_MODE_TOTAL' ? 'Total' : 'Daily'"></p>
                                 </div>
                                 <div class="bg-green-50 rounded-lg p-2 text-center">
                                     <p class="text-xs text-green-600">Spend</p>
-                                    <p class="font-semibold text-green-700" x-text="'฿' + formatNumber(ad.spend || ad.total_cost || 0)"></p>
+                                    <p class="font-semibold text-green-700" x-text="'฿' + formatMoney(ad.spend || ad.total_cost || 0)"></p>
                                 </div>
                                 <div class="bg-blue-50 rounded-lg p-2 text-center">
                                     <p class="text-xs text-blue-600">Status</p>
@@ -1138,10 +1356,23 @@ function tiktokContentsPage() {
         adsLoading: false,
         boostContent: null,
         employees: [],
+        allProducts: [],
+        targetingTemplates: [],
+        productSearch: '',
+        productSearchFocused: false,
+        targetingSearch: '',
+        targetingSearchFocused: false,
+        boostAds: {
+            loading: false,
+            campaign_name: '',
+            adgroup_name: '',
+            ad_name: '',
+        },
         
         // Forms
         editForm: {
-            products: '',
+            selectedProducts: [],  // Array of product codes
+            selectedTargetingIds: [],  // Array of targeting template IDs
             content_type: 'sale',
             status: 'ready',
             content_source: 'influencer',
@@ -1170,7 +1401,8 @@ function tiktokContentsPage() {
             content_source: '',
             search: '',
             creator: '',
-            expiring: ''
+            expiring: '',
+            products: []
         },
         stats: {
             total: {{ stats.total }},
@@ -1190,6 +1422,8 @@ function tiktokContentsPage() {
             this.readFiltersFromURL();
             this.loadContents();
             this.loadEmployees();
+            this.loadProducts();
+            this.loadTargetingTemplates();
         },
         
         // Read filters from URL and apply
@@ -1197,11 +1431,12 @@ function tiktokContentsPage() {
             const urlParams = new URLSearchParams(window.location.search);
             
             if (urlParams.has('status')) this.filters.status = urlParams.get('status');
-            if (urlParams.has('content_type')) this.filters.content_type = urlParams.get('content_type');
-            if (urlParams.has('content_source')) this.filters.content_source = urlParams.get('content_source');
-            if (urlParams.has('search')) this.filters.search = urlParams.get('search');
+            if (urlParams.has('type')) this.filters.content_type = urlParams.get('type');
+            if (urlParams.has('source')) this.filters.content_source = urlParams.get('source');
+            if (urlParams.has('q')) this.filters.search = urlParams.get('q');
             if (urlParams.has('creator')) this.filters.creator = urlParams.get('creator');
             if (urlParams.has('expiring')) this.filters.expiring = urlParams.get('expiring');
+            if (urlParams.has('products')) this.filters.products = urlParams.get('products').split('+').filter(p => p);
             if (urlParams.has('page')) this.currentPage = parseInt(urlParams.get('page')) || 1;
             // Sort params
             if (urlParams.has('sort')) this.sortField = urlParams.get('sort');
@@ -1213,32 +1448,54 @@ function tiktokContentsPage() {
             const params = new URLSearchParams();
             
             if (this.filters.status) params.set('status', this.filters.status);
-            if (this.filters.content_type) params.set('content_type', this.filters.content_type);
-            if (this.filters.content_source) params.set('content_source', this.filters.content_source);
-            if (this.filters.search) params.set('search', this.filters.search);
+            if (this.filters.content_type) params.set('type', this.filters.content_type);
+            if (this.filters.content_source) params.set('source', this.filters.content_source);
+            if (this.filters.search) params.set('q', this.filters.search);
             if (this.filters.creator) params.set('creator', this.filters.creator);
             if (this.filters.expiring) params.set('expiring', this.filters.expiring);
+            if (this.filters.products && this.filters.products.length > 0) params.set('products', this.filters.products.join('+'));
             if (this.currentPage > 1) params.set('page', this.currentPage);
             // Sort params
             if (this.sortField && this.sortField !== 'platform_created_at') params.set('sort', this.sortField);
             if (this.sortDir && this.sortDir !== 'desc') params.set('dir', this.sortDir);
             
-            const newURL = params.toString() 
-                ? `${window.location.pathname}?${params.toString()}`
+            const queryString = params.toString();
+            const newURL = queryString 
+                ? `${window.location.pathname}?${queryString}`
                 : window.location.pathname;
             
             // Update URL without page reload
-            window.history.replaceState({}, '', newURL);
+            window.history.replaceState(null, '', newURL);
+        },
+        
+        filterByProducts(codes) {
+            // Sort codes for consistent comparison
+            this.filters.products = [...codes].sort();
+            this.currentPage = 1;
+            this.loadContents();
+        },
+        
+        clearProductFilter() {
+            this.filters.products = [];
+            this.loadContents();
         },
         
         async loadContents() {
             this.loading = true;
             try {
+                const filterParams = {...this.filters};
+                // Convert products array to comma-separated string for API
+                if (filterParams.products && filterParams.products.length > 0) {
+                    filterParams.products = filterParams.products.join(',');
+                } else {
+                    delete filterParams.products;
+                }
+                
                 const params = new URLSearchParams({
                     page: this.currentPage,
                     page_size: this.pageSize,
                     platform: 'tiktok',
-                    ...this.filters
+                    ...filterParams
                 });
                 
                 const response = await fetch(`/api/v1/contents?${params}`);
@@ -1278,6 +1535,115 @@ function tiktokContentsPage() {
                 }
             } catch (err) {
                 console.error('Error loading employees:', err);
+            }
+        },
+        
+        async loadProducts() {
+            try {
+                const response = await fetch('/api/v1/products?limit=500');
+                const data = await response.json();
+                // API returns array directly
+                this.allProducts = Array.isArray(data) ? data : (data.data || []);
+            } catch (err) {
+                console.error('Error loading products:', err);
+            }
+        },
+        
+        async loadTargetingTemplates() {
+            try {
+                const token = localStorage.getItem('access_token');
+                const response = await fetch('/api/v1/ads/targeting-templates', {
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                });
+                const data = await response.json();
+                this.targetingTemplates = data.data || [];
+            } catch (err) {
+                console.error('Error loading targeting templates:', err);
+            }
+        },
+        
+        // Product selection helpers
+        filteredProducts() {
+            const term = this.productSearch.trim().toLowerCase();
+            if (!term) {
+                return this.allProducts.slice(0, 30);
+            }
+            return this.allProducts.filter(p => 
+                (p.code || '').toLowerCase().includes(term) || 
+                (p.name || '').toLowerCase().includes(term)
+            ).slice(0, 30);
+        },
+        
+        isProductSelected(code) {
+            return this.editForm.selectedProducts.includes(code);
+        },
+        
+        toggleProduct(code) {
+            const idx = this.editForm.selectedProducts.indexOf(code);
+            if (idx === -1) {
+                this.editForm.selectedProducts.push(code);
+            } else {
+                this.editForm.selectedProducts.splice(idx, 1);
+            }
+            this.productSearch = '';
+        },
+        
+        removeProduct(code) {
+            this.editForm.selectedProducts = this.editForm.selectedProducts.filter(c => c !== code);
+        },
+        
+        getProductName(code) {
+            const product = this.allProducts.find(p => p.code === code);
+            return product ? product.name : '';
+        },
+        
+        // Targeting selection helpers
+        isTargetingSelected(id) {
+            return this.editForm.selectedTargetingIds.includes(id);
+        },
+        
+        filteredTargeting() {
+            const term = this.targetingSearch.trim().toLowerCase();
+            if (!term) {
+                return this.targetingTemplates;
+            }
+            return this.targetingTemplates.filter(t => 
+                (t.name || '').toLowerCase().includes(term) || 
+                (t.targeting_code || '').toLowerCase().includes(term)
+            );
+        },
+        
+        getTargetingName(id) {
+            const tpl = this.targetingTemplates.find(t => t.id === id);
+            return tpl ? tpl.name : '';
+        },
+        
+        getTargetingCode(id) {
+            const tpl = this.targetingTemplates.find(t => t.id === id);
+            return tpl ? tpl.targeting_code : '';
+        },
+        
+        // For table display - short name (targeting_code)
+        getTargetingShortName(id) {
+            const tpl = this.targetingTemplates.find(t => t.id === id);
+            if (!tpl) return 'T' + id;
+            // Use targeting_code or first part of name
+            return tpl.targeting_code || tpl.name.split('_')[0] || 'T' + id;
+        },
+        
+        // For tooltip - full name
+        getTargetingFullName(id) {
+            const tpl = this.targetingTemplates.find(t => t.id === id);
+            if (!tpl) return 'Targeting #' + id;
+            return tpl.name + (tpl.targeting_code ? ' (' + tpl.targeting_code + ')' : '');
+        },
+        
+        toggleTargeting(id) {
+            const idx = this.editForm.selectedTargetingIds.indexOf(id);
+            if (idx === -1) {
+                this.editForm.selectedTargetingIds.push(id);
+            } else {
+                this.editForm.selectedTargetingIds.splice(idx, 1);
             }
         },
         
@@ -1349,7 +1715,7 @@ function tiktokContentsPage() {
                 this.importing = false;
             }
         },
-        
+
         toggleSelectAll(event) {
             if (event.target.checked) {
                 this.selectedIds = this.contents.map(c => c.id);
@@ -1408,8 +1774,15 @@ function tiktokContentsPage() {
         // Edit Content Modal
         editContent(content) {
             this.editingContent = content;
+            // Reset search states
+            this.productSearch = '';
+            this.productSearchFocused = false;
+            this.targetingSearch = '';
+            this.targetingSearchFocused = false;
+            // Set form data
             this.editForm = {
-                products: (content.product_codes || []).join(', '),
+                selectedProducts: content.product_codes || [],
+                selectedTargetingIds: content.preferred_targeting_ids || [],
                 content_type: content.content_type || 'sale',
                 status: content.status || 'ready',
                 content_source: content.content_source || 'influencer',
@@ -1427,7 +1800,8 @@ function tiktokContentsPage() {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        product_codes: this.editForm.products.split(',').map(p => p.trim()).filter(p => p),
+                        product_codes: this.editForm.selectedProducts,
+                        preferred_targeting_ids: this.editForm.selectedTargetingIds,
                         content_type: this.editForm.content_type,
                         status: this.editForm.status,
                         content_source: this.editForm.content_source,
@@ -1467,6 +1841,20 @@ function tiktokContentsPage() {
                 if (data.success) {
                     this.adsDetails = data.data;
                     
+                    // Calculate total cost from actual ads data (more accurate)
+                    let calculatedTotalCost = 0;
+                    if (data.data && Array.isArray(data.data)) {
+                        data.data.forEach(ad => {
+                            calculatedTotalCost += parseFloat(ad.spend || ad.total_cost || 0);
+                        });
+                    }
+                    
+                    console.log('[AdsModal] API meta.total_cost:', data.meta?.total_cost);
+                    console.log('[AdsModal] Calculated from ads:', calculatedTotalCost);
+                    
+                    // Use calculated total if it's higher (more accurate)
+                    const finalTotalCost = Math.max(data.meta?.total_cost || 0, calculatedTotalCost);
+                    
                     // Update the content in the table with new ads data
                     if (data.meta) {
                         const idx = this.contents.findIndex(c => c.id === content.id);
@@ -1474,7 +1862,7 @@ function tiktokContentsPage() {
                             this.contents[idx].ads_count = data.meta.total_ads;
                             this.contents[idx].ace_ad_count = data.meta.ace_count;
                             this.contents[idx].abx_ad_count = data.meta.abx_count;
-                            this.contents[idx].ads_total_cost = data.meta.total_cost;
+                            this.contents[idx].ads_total_cost = finalTotalCost;
                         }
                         // Update modal header info
                         this.adsContent = {
@@ -1482,8 +1870,10 @@ function tiktokContentsPage() {
                             ads_count: data.meta.total_ads,
                             ace_ad_count: data.meta.ace_count,
                             abx_ad_count: data.meta.abx_count,
-                            ads_total_cost: data.meta.total_cost
+                            ads_total_cost: finalTotalCost
                         };
+                        
+                        console.log('[AdsModal] Updated adsContent.ads_total_cost:', this.adsContent.ads_total_cost);
                     }
                 }
             } catch (err) {
@@ -1549,7 +1939,7 @@ function tiktokContentsPage() {
                 if (data.success) {
                     ad.budget = newBudget;
                     ad.adgroup_budget = newBudget;
-                    this.showToast(`อัปเดท Budget เป็น ฿${this.formatNumber(newBudget)} สำเร็จ`, 'success');
+                    this.showToast(`อัปเดท Budget เป็น ฿${this.formatMoney(newBudget)} สำเร็จ`, 'success');
                 } else {
                     this.showToast(data.message || 'ไม่สำเร็จ', 'error');
                 }
@@ -1694,7 +2084,8 @@ function tiktokContentsPage() {
                 'pfm_score': 'PFM',
                 'platform_created_at': 'Date',
                 'creator_name': 'Creator',
-                'ads_count': 'Ads'
+                'ads_count': 'Ads',
+                'products': '📦 Products'
             };
             return labels[field] || field;
         },
@@ -1704,8 +2095,17 @@ function tiktokContentsPage() {
             const dir = this.sortDir;
             
             this.contents.sort((a, b) => {
-                let aVal = a[field];
-                let bVal = b[field];
+                let aVal, bVal;
+                
+                // Special handling for products (array)
+                if (field === 'products') {
+                    aVal = (a.product_codes || []).sort().join(',');
+                    bVal = (b.product_codes || []).sort().join(',');
+                    return dir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                }
+                
+                aVal = a[field];
+                bVal = b[field];
                 
                 // Handle null/undefined
                 if (aVal == null) aVal = field === 'platform_created_at' ? '' : 0;
@@ -1770,9 +2170,18 @@ function tiktokContentsPage() {
             return num.toLocaleString();
         },
         
+        // Format money with comma separator, 2 decimal places (no K/M abbreviation)
+        formatMoney(num) {
+            if (!num) return '0.00';
+            return parseFloat(num).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        },
+        
         formatCurrency(num) {
-            if (!num) return '฿0';
-            return '฿' + this.formatNumber(num);
+            if (!num) return '฿0.00';
+            return '฿' + this.formatMoney(num);
         },
         
         formatDate(dateStr) {
