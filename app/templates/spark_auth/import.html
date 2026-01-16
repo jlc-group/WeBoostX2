@@ -1,0 +1,517 @@
+{% extends "layouts/app.html" %}
+
+{% block page_title %}Import Auth Codes{% endblock %}
+{% block page_subtitle %}นำเข้า Auth Code จาก Influencers สำหรับ Spark Ads{% endblock %}
+
+{% block extra_css %}
+<style>
+    [x-cloak] { display: none !important; }
+    
+    .drop-zone {
+        border: 3px dashed #d1d5db;
+        border-radius: 16px;
+        padding: 48px 24px;
+        text-align: center;
+        background: #fafbfc;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+        border-color: #6366f1;
+        background: #eef2ff;
+    }
+    
+    .drop-zone.has-file {
+        border-color: #10b981;
+        background: #ecfdf5;
+    }
+    
+    .loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    
+    .spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #e5e7eb;
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6" x-data="sparkAuthImport()">
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-4 gap-4" x-show="stats.total > 0" x-cloak>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 text-center">
+            <div class="text-3xl font-bold text-indigo-600" x-text="stats.total">0</div>
+            <div class="text-sm text-gray-500 mt-1">Total Codes</div>
+        </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 text-center">
+            <div class="text-3xl font-bold text-green-600" x-text="stats.authorized">0</div>
+            <div class="text-sm text-gray-500 mt-1">Authorized</div>
+        </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 text-center">
+            <div class="text-3xl font-bold text-blue-600" x-text="stats.bound">0</div>
+            <div class="text-sm text-gray-500 mt-1">Bound</div>
+        </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 text-center">
+            <div class="text-3xl font-bold text-amber-600" x-text="stats.pending">0</div>
+            <div class="text-sm text-gray-500 mt-1">Pending</div>
+        </div>
+    </div>
+    
+    <!-- Settings Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                ⚙️ ตั้งค่าการ Import
+            </h2>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        Ad Account <span class="text-red-500">*</span>
+                    </label>
+                    <select x-model="settings.adAccountId" 
+                            class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:ring-0 transition-colors"
+                            :disabled="loading">
+                        <option value="">-- เลือก Ad Account --</option>
+                        <template x-for="acc in adAccounts" :key="acc.id">
+                            <option :value="acc.id" x-text="acc.name + ' (' + acc.external_account_id + ')'"></option>
+                        </template>
+                    </select>
+                    <p x-show="adAccounts.length === 0 && !loadingAccounts" class="text-red-500 text-sm mt-2" x-cloak>
+                        ⚠️ ไม่พบ Ad Account - <a href="/settings" class="underline font-medium">เพิ่มใน Settings</a>
+                    </p>
+                    <p x-show="adAccounts.length > 0" class="text-green-600 text-sm mt-2" x-cloak>
+                        ✓ พบ <span x-text="adAccounts.length"></span> ad account
+                    </p>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Batch Name</label>
+                    <input type="text" x-model="settings.batchName" 
+                           class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:ring-0 transition-colors"
+                           placeholder="เช่น Agency XYZ - Dec 2024">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Agency Name</label>
+                    <input type="text" x-model="settings.agencyName" 
+                           class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-indigo-500 focus:ring-0 transition-colors"
+                           placeholder="เช่น Agency XYZ">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Import Method Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                📤 วิธีการ Import
+            </h2>
+        </div>
+        <div class="p-6">
+            <!-- Method Tabs -->
+            <div class="flex gap-3 mb-6">
+                <button @click="method = 'csv'" 
+                        class="flex-1 py-4 px-6 rounded-xl border-2 font-semibold transition-all"
+                        :class="method === 'csv' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300'">
+                    <div class="text-2xl mb-1">📁</div>
+                    <div>CSV File</div>
+                </button>
+                <button @click="method = 'manual'" 
+                        class="flex-1 py-4 px-6 rounded-xl border-2 font-semibold transition-all"
+                        :class="method === 'manual' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-indigo-300'">
+                    <div class="text-2xl mb-1">✏️</div>
+                    <div>กรอกเอง</div>
+                </button>
+            </div>
+            
+            <!-- CSV Upload -->
+            <div x-show="method === 'csv'" x-cloak>
+                <div class="drop-zone" 
+                     :class="{ 'has-file': csvFile, 'drag-over': isDragging }"
+                     @click="$refs.fileInput.click()"
+                     @dragover.prevent="isDragging = true"
+                     @dragleave.prevent="isDragging = false"
+                     @drop.prevent="handleDrop($event)">
+                    
+                    <template x-if="!csvFile">
+                        <div>
+                            <div class="text-5xl mb-4">📁</div>
+                            <h3 class="text-lg font-semibold text-gray-700 mb-2">ลาก CSV ไฟล์มาวางที่นี่</h3>
+                            <p class="text-gray-500">หรือคลิกเพื่อเลือกไฟล์</p>
+                        </div>
+                    </template>
+                    
+                    <template x-if="csvFile">
+                        <div>
+                            <div class="text-5xl mb-4">✅</div>
+                            <h3 class="text-lg font-semibold text-green-700 mb-2" x-text="csvFile.name"></h3>
+                            <p class="text-green-600" x-text="csvData.length + ' auth codes พร้อม import'"></p>
+                        </div>
+                    </template>
+                    
+                    <input type="file" x-ref="fileInput" accept=".csv" @change="handleFileSelect" class="hidden">
+                </div>
+                
+                <div class="mt-6 bg-gray-900 rounded-xl p-5 text-gray-300">
+                    <h4 class="text-white font-semibold mb-3 flex items-center gap-2">
+                        📋 รูปแบบ CSV
+                    </h4>
+                    <pre class="font-mono text-sm leading-relaxed"><span class="text-gray-500"># Header (บรรทัดแรก)</span>
+auth_code,influencer_name,creator_username,notes
+
+<span class="text-gray-500"># ตัวอย่างข้อมูล</span>
+ABC123XYZ456,คุณเอ - IG,@kunaaaa,จาก Agency XYZ
+DEF789UVW012,คุณบี - TikTok,@kunbbbb,Campaign พฤศจิกา</pre>
+                    <p class="text-gray-500 text-sm mt-4">* เฉพาะ auth_code เท่านั้นที่จำเป็น คอลัมน์อื่นเป็น optional</p>
+                </div>
+            </div>
+            
+            <!-- Manual Input -->
+            <div x-show="method === 'manual'" x-cloak>
+                <div class="space-y-3">
+                    <template x-for="(row, index) in manualRows" :key="index">
+                        <div class="flex gap-3 items-center p-4 bg-gray-50 rounded-xl border border-gray-200">
+                            <input type="text" x-model="row.auth_code" 
+                                   class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                   placeholder="Auth Code *" required>
+                            <input type="text" x-model="row.influencer_name" 
+                                   class="w-40 px-4 py-2 border border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                   placeholder="ชื่อ Influencer">
+                            <input type="text" x-model="row.creator_username" 
+                                   class="w-36 px-4 py-2 border border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                   placeholder="@username">
+                            <button type="button" @click="removeRow(index)" 
+                                    x-show="manualRows.length > 1"
+                                    class="w-10 h-10 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </template>
+                    
+                    <button type="button" @click="addRow()" 
+                            class="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 font-medium transition-all flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        เพิ่ม Auth Code
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Import Button -->
+    <button @click="doImport()" 
+            :disabled="!canImport || loading"
+            class="w-full py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3">
+        <template x-if="loading">
+            <span class="flex items-center gap-3">
+                <svg class="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                กำลัง Import...
+            </span>
+        </template>
+        <template x-if="!loading">
+            <span>🚀 Import & Authorize</span>
+        </template>
+    </button>
+    
+    <!-- Results -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden" x-show="results" x-cloak>
+        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+            <h3 class="text-lg font-bold text-gray-800">📊 ผลลัพธ์การ Import</h3>
+            <div class="flex gap-4 text-sm">
+                <span class="text-green-600 font-bold">✓ Authorized: <span x-text="results?.authorized || 0"></span></span>
+                <span class="text-blue-600 font-bold">🔗 Bound: <span x-text="results?.bound || 0"></span></span>
+                <span class="text-red-600 font-bold">✕ Failed: <span x-text="results?.failed || 0"></span></span>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="bg-gray-50">
+                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Auth Code</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Item ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Content ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Error</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <template x-for="item in (results?.details || [])" :key="item.auth_code">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4">
+                                <code class="text-xs bg-gray-100 px-2 py-1 rounded" x-text="item.auth_code"></code>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="px-3 py-1 rounded-full text-xs font-semibold"
+                                      :class="{
+                                          'bg-green-100 text-green-700': item.status === 'authorized',
+                                          'bg-blue-100 text-blue-700': item.status === 'bound',
+                                          'bg-purple-100 text-purple-700': item.status === 'used',
+                                          'bg-red-100 text-red-700': item.status === 'failed',
+                                          'bg-gray-100 text-gray-700': item.status === 'skipped',
+                                          'bg-amber-100 text-amber-700': item.status === 'pending',
+                                      }"
+                                      x-text="item.status"></span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600" x-text="item.item_id || '-'"></td>
+                            <td class="px-6 py-4">
+                                <template x-if="item.content_id">
+                                    <a :href="'/contents?id=' + item.content_id" 
+                                       class="text-indigo-600 hover:underline font-medium" 
+                                       x-text="'#' + item.content_id"></a>
+                                </template>
+                                <template x-if="!item.content_id">
+                                    <span class="text-gray-400">-</span>
+                                </template>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-red-500" x-text="item.error || '-'"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" x-show="loading" x-cloak>
+        <div class="bg-white p-10 rounded-2xl text-center shadow-2xl">
+            <div class="spinner mx-auto mb-4"></div>
+            <p class="font-bold text-lg text-gray-800">กำลัง Import & Authorize...</p>
+            <p class="text-gray-500 mt-2">อาจใช้เวลาสักครู่</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function sparkAuthImport() {
+    return {
+        // Settings
+        settings: {
+            adAccountId: '',
+            batchName: '',
+            agencyName: '',
+        },
+        
+        // Method
+        method: 'csv',
+        
+        // CSV
+        csvFile: null,
+        csvData: [],
+        isDragging: false,
+        
+        // Manual
+        manualRows: [
+            { auth_code: '', influencer_name: '', creator_username: '' }
+        ],
+        
+        // State
+        loading: false,
+        loadingAccounts: true,
+        adAccounts: [],
+        stats: { total: 0, authorized: 0, bound: 0, pending: 0 },
+        results: null,
+        
+        // Computed
+        get canImport() {
+            if (!this.settings.adAccountId) return false;
+            
+            if (this.method === 'csv') {
+                return this.csvData.length > 0;
+            } else {
+                return this.manualRows.some(row => row.auth_code.trim());
+            }
+        },
+        
+        // Init
+        async init() {
+            await this.loadAdAccounts();
+            await this.loadStats();
+        },
+        
+        async loadAdAccounts() {
+            this.loadingAccounts = true;
+            try {
+                const resp = await window.apiRequest('/api/v1/ads/advertisers');
+                if (resp && resp.ok) {
+                    const result = await resp.json();
+                    this.adAccounts = result.data || [];
+                    
+                    // Auto-select if only one
+                    if (this.adAccounts.length === 1) {
+                        this.settings.adAccountId = this.adAccounts[0].id;
+                    }
+                }
+            } catch (err) {
+                console.error('Error loading ad accounts:', err);
+            } finally {
+                this.loadingAccounts = false;
+            }
+        },
+        
+        async loadStats() {
+            try {
+                const resp = await window.apiRequest('/api/v1/spark-auth/stats');
+                if (resp && resp.ok) {
+                    const result = await resp.json();
+                    this.stats = result || { total: 0, authorized: 0, bound: 0, pending: 0 };
+                }
+            } catch (err) {
+                console.error('Error loading stats:', err);
+            }
+        },
+        
+        // File handling
+        handleDrop(e) {
+            this.isDragging = false;
+            const file = e.dataTransfer.files[0];
+            if (file) this.processFile(file);
+        },
+        
+        handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) this.processFile(file);
+        },
+        
+        processFile(file) {
+            if (!file.name.endsWith('.csv')) {
+                alert('กรุณาเลือกไฟล์ CSV เท่านั้น');
+                return;
+            }
+            
+            this.csvFile = file;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.parseCSV(e.target.result);
+            };
+            reader.readAsText(file);
+        },
+        
+        parseCSV(text) {
+            const lines = text.trim().split('\n');
+            if (lines.length < 2) {
+                this.csvData = [];
+                return;
+            }
+            
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            
+            this.csvData = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',');
+                const row = {};
+                headers.forEach((header, idx) => {
+                    row[header] = (values[idx] || '').trim();
+                });
+                
+                if (row.auth_code) {
+                    this.csvData.push({
+                        auth_code: row.auth_code,
+                        influencer_name: row.influencer_name || '',
+                        creator_username: row.creator_username || '',
+                        notes: row.notes || '',
+                    });
+                }
+            }
+        },
+        
+        // Manual input
+        addRow() {
+            this.manualRows.push({ auth_code: '', influencer_name: '', creator_username: '' });
+        },
+        
+        removeRow(index) {
+            if (this.manualRows.length > 1) {
+                this.manualRows.splice(index, 1);
+            }
+        },
+        
+        // Import
+        async doImport() {
+            if (!this.canImport) return;
+            
+            this.loading = true;
+            this.results = null;
+            
+            let authCodes = [];
+            
+            if (this.method === 'csv') {
+                authCodes = this.csvData;
+            } else {
+                authCodes = this.manualRows
+                    .filter(row => row.auth_code.trim())
+                    .map(row => ({
+                        auth_code: row.auth_code.trim(),
+                        influencer_name: row.influencer_name.trim() || null,
+                        creator_username: row.creator_username.trim() || null,
+                    }));
+            }
+            
+            try {
+                const resp = await window.apiRequest('/api/v1/spark-auth/bulk-import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ad_account_id: parseInt(this.settings.adAccountId),
+                        batch_name: this.settings.batchName || null,
+                        agency_name: this.settings.agencyName || null,
+                        auth_codes: authCodes,
+                        auto_authorize: true,
+                    }),
+                });
+                
+                const result = await resp.json();
+                
+                if (!resp.ok) {
+                    throw new Error(result.detail || 'Import failed');
+                }
+                
+                this.results = result;
+                
+                // Reload stats
+                await this.loadStats();
+                
+                // Clear form on success
+                if (result.authorized > 0 || result.bound > 0) {
+                    this.csvFile = null;
+                    this.csvData = [];
+                    this.manualRows = [{ auth_code: '', influencer_name: '', creator_username: '' }];
+                }
+                
+            } catch (err) {
+                alert('Error: ' + (err.message || 'Import failed'));
+            } finally {
+                this.loading = false;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

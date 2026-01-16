@@ -1,15 +1,42 @@
 """
 Database models for WeBoostX 2.0
 """
-from app.models.base import Base, BaseModel, TimestampMixin, SoftDeleteMixin
-from app.models.enums import (
-    UserRole, UserStatus, Platform, ContentType, ContentSource, ContentStatus,
-    AdAccountStatus, CampaignObjective, OptimizationGoal, AdStatus, BudgetType,
-    AllocationType
+# ABX models
+from app.models.abx import ABXAdgroup, ABXBudgetLog
+from app.models.ad_performance_daily import AdPerformanceDaily
+from app.models.base import Base, BaseModel, SoftDeleteMixin, TimestampMixin
+
+# Budget models
+from app.models.budget import (
+    BudgetAllocation,
+    BudgetOptimizationLog,
+    BudgetPlan,
+    DailyBudget,
 )
 
-# User models
-from app.models.user import User, Notification
+# Campaign/Ad models
+from app.models.campaign import Ad, AdGroup, AdPerformanceHistory, Campaign
+
+# Content models
+from app.models.content import Content, ContentScoreHistory, ContentStaffAllocation
+
+# Employee/Influencer models
+from app.models.employee import ContentCreatorAssignment, Employee, Influencer
+from app.models.enums import (
+    AdAccountStatus,
+    AdStatus,
+    AllocationType,
+    BudgetType,
+    CampaignObjective,
+    ContentSource,
+    ContentStaffRole,
+    ContentStatus,
+    ContentType,
+    OptimizationGoal,
+    Platform,
+    UserRole,
+    UserStatus,
+)
 
 # Platform models
 from app.models.platform import AdAccount, TargetingTemplate
@@ -17,39 +44,32 @@ from app.models.platform import AdAccount, TargetingTemplate
 # Product models
 from app.models.product import Product, ProductGroup
 
-# Content models
-from app.models.content import Content, ContentScoreHistory
-
-# Campaign/Ad models
-from app.models.campaign import Campaign, AdGroup, Ad, AdPerformanceHistory
-
-# ABX models
-from app.models.abx import ABXAdgroup, ABXBudgetLog
-
-# Budget models
-from app.models.budget import (
-    BudgetPlan, BudgetAllocation, DailyBudget, BudgetOptimizationLog
-)
-
 # Sales models
 from app.models.sales import (
-    OnlineSaleDaily, SaversureScanDaily, OfflineSaleWeekly, SKUSignal
+    OfflineSaleWeekly,
+    OnlineSaleDaily,
+    SaversureScanDaily,
+    SKUSignal,
 )
 
-# Task models
-from app.models.task import TaskLog, SyncStatus, TaskStatus
+# Spark Ad Auth models
+from app.models.spark_auth import SparkAdAuth, SparkAuthImportLog, SparkAuthStatus
 
 # System models
 from app.models.system import AppSetting
 
-# Employee/Influencer models
-from app.models.employee import Employee, Influencer, ContentCreatorAssignment
-
 # Targeting Cache models
 from app.models.targeting_cache import (
-    TikTokInterestCategory, TikTokActionCategory, TikTokRegion
+    TikTokActionCategory,
+    TikTokInterestCategory,
+    TikTokRegion,
 )
 
+# Task models
+from app.models.task import SyncStatus, TaskLog, TaskStatus
+
+# User models
+from app.models.user import Notification, User
 
 __all__ = [
     # Base
@@ -57,7 +77,7 @@ __all__ = [
     
     # Enums
     "UserRole", "UserStatus", "Platform", "ContentType", "ContentSource",
-    "ContentStatus", "AdAccountStatus", "CampaignObjective", "OptimizationGoal",
+    "ContentStatus", "ContentStaffRole", "AdAccountStatus", "CampaignObjective", "OptimizationGoal",
     "AdStatus", "BudgetType", "AllocationType", "TaskStatus",
     
     # User
@@ -70,10 +90,10 @@ __all__ = [
     "Product", "ProductGroup",
     
     # Content
-    "Content", "ContentScoreHistory",
+    "Content", "ContentScoreHistory", "ContentStaffAllocation",
     
     # Campaign/Ad
-    "Campaign", "AdGroup", "Ad", "AdPerformanceHistory",
+    "Campaign", "AdGroup", "Ad", "AdPerformanceHistory", "AdPerformanceDaily",
     
     # ABX
     "ABXAdgroup", "ABXBudgetLog",
@@ -95,4 +115,7 @@ __all__ = [
     
     # Targeting Cache
     "TikTokInterestCategory", "TikTokActionCategory", "TikTokRegion",
+    
+    # Spark Ad Auth
+    "SparkAdAuth", "SparkAuthImportLog", "SparkAuthStatus",
 ]

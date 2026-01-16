@@ -85,6 +85,27 @@
                     </svg>
                 </button>
             </div>
+            
+            <div x-show="filters.content_tag" class="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 rounded-xl text-sm">
+                <span>Tag:</span>
+                <span class="font-medium" x-text="filters.content_tag"></span>
+                <button @click="clearFilter('content_tag')" class="hover:bg-amber-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <!-- Staff Filter -->
+            <div x-show="filters.staff_id" class="flex items-center gap-2 px-3 py-2 bg-violet-50 text-violet-700 rounded-xl text-sm">
+                <span>👥 Staff:</span>
+                <span class="font-medium" x-text="filters.staff_name || 'พนักงาน'"></span>
+                <button @click="clearFilter('staff')" class="hover:bg-violet-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            
             <!-- Status Filter (from badge click) -->
             <div x-show="filters.status && !$refs.statusSelect?.value" class="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-xl text-sm">
                 <span>Status:</span>
@@ -104,6 +125,58 @@
                     </svg>
                 </button>
             </div>
+            
+            <!-- Advanced Filters Badges -->
+            <div x-show="filters.boosted" class="flex items-center gap-2 px-3 py-2 bg-orange-50 text-orange-700 rounded-xl text-sm">
+                <span>⚡ Boosted Only</span>
+                <button @click="clearFilter('boosted')" class="hover:bg-orange-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div x-show="filters.need_attention" class="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 rounded-xl text-sm">
+                <span>⚠️ Need Attention</span>
+                <button @click="clearFilter('need_attention')" class="hover:bg-amber-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div x-show="filters.no_targeting" class="flex items-center gap-2 px-3 py-2 bg-yellow-50 text-yellow-700 rounded-xl text-sm">
+                <span>🎯 No Targeting</span>
+                <button @click="clearFilter('no_targeting')" class="hover:bg-yellow-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div x-show="filters.min_views" class="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-xl text-sm">
+                <span>👁️ Views ≥ <span x-text="formatNumber(filters.min_views)"></span></span>
+                <button @click="clearFilter('min_views')" class="hover:bg-blue-100 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div x-show="filters.sort_by" class="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm">
+                <span>🔄 Sort: <span x-text="filters.sort_by"></span> (<span x-text="filters.sort_dir"></span>)</span>
+                <button @click="clearFilter('sort')" class="hover:bg-gray-200 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Special Mode Indicator -->
+            <div x-show="specialMode" class="flex items-center gap-2 px-3 py-2 bg-emerald-100 text-emerald-800 rounded-xl text-sm font-medium">
+                <span>⭐ <span x-text="specialMode === 'best_each_product' ? 'Best Each Product Mode' : specialMode"></span></span>
+                <a href="/contents/tiktok" class="hover:bg-emerald-200 rounded p-0.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </a>
+            </div>
         </div>
         
         <!-- Actions -->
@@ -117,12 +190,23 @@
                 <span x-text="'อัปเดต ' + selectedIds.length + ' รายการ'"></span>
             </button>
             
-            <button @click="syncContent()" :disabled="syncing"
+            <!-- Sync Content Button -->
+            <button @click="syncContent()" :disabled="syncingContent"
                     class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors disabled:opacity-50 text-sm font-medium">
-                <svg class="w-4 h-4" :class="syncing && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4" :class="syncingContent && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                 </svg>
-                <span x-text="syncing ? 'Syncing...' : 'Sync TikTok'"></span>
+                <span x-text="syncingContent ? 'Syncing...' : 'Sync Content'"></span>
+            </button>
+            
+            <!-- Sync Ads Button -->
+            <button @click="syncAds()" :disabled="syncingAds"
+                    class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors disabled:opacity-50 text-sm font-medium">
+                <svg class="w-4 h-4" :class="syncingAds && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>
+                </svg>
+                <span x-text="syncingAds ? 'Syncing...' : 'Sync Ads'"></span>
             </button>
             
             <button @click="recalculatePFM()" :disabled="calculating"
@@ -140,6 +224,102 @@
                 </svg>
                 <span>Import Content</span>
             </button>
+            
+            <!-- Auth Codes (Influencer) -->
+            <a href="/spark-auth/import"
+               class="flex items-center gap-2 px-4 py-2 border border-amber-300 text-amber-700 rounded-xl bg-amber-50 hover:bg-amber-100 transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                </svg>
+                <span>Auth Codes</span>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Quick Shortcuts -->
+    <div class="bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl p-4 border border-gray-200">
+        <div class="flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
+            <span class="text-gray-500 font-medium mr-2">🔗 Shortcuts:</span>
+            
+            <!-- Performance Group -->
+            <span class="text-gray-400">|</span>
+            <a href="/contents/tiktok?sort=pfm_score&dir=desc&page_size=100" 
+               class="px-2 py-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 rounded transition-colors font-medium"
+               title="Top 100 content เรียงตาม PFM Score สูงสุด">
+                🏆 Top PFM 100
+            </a>
+            <a href="/contents/tiktok/best-each-product" 
+               class="px-2 py-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 rounded transition-colors font-medium"
+               title="Content ที่ดีที่สุดของแต่ละ Product">
+                ⭐ Best Each Product
+            </a>
+            <a href="/contents/tiktok?sort=views&dir=desc&min_views=100000" 
+               class="px-2 py-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 rounded transition-colors font-medium"
+               title="Content ที่มียอดวิว 100K+">
+                👁️ High Views
+            </a>
+            
+            <!-- Source Group -->
+            <span class="text-gray-400">|</span>
+            <a href="/contents/tiktok?source=influencer" 
+               class="px-2 py-1 text-pink-700 hover:text-pink-900 hover:bg-pink-50 rounded transition-colors font-medium"
+               title="Content จาก Influencer">
+                💫 Influencer
+            </a>
+            <a href="/contents/tiktok?source=staff" 
+               class="px-2 py-1 text-pink-700 hover:text-pink-900 hover:bg-pink-50 rounded transition-colors font-medium"
+               title="Content จากทีมงาน">
+                👥 Staff
+            </a>
+            <a href="/contents/tiktok?source=page" 
+               class="px-2 py-1 text-pink-700 hover:text-pink-900 hover:bg-pink-50 rounded transition-colors font-medium"
+               title="Content จากเพจ Official">
+                📄 Page
+            </a>
+            
+            <!-- Ads Group -->
+            <span class="text-gray-400">|</span>
+            <a href="/contents/tiktok?status=ready" 
+               class="px-2 py-1 text-blue-700 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors font-medium"
+               title="Content ที่พร้อมรันโฆษณา">
+                ✅ Ready for Ads
+            </a>
+            <a href="/contents/tiktok?status=active_ad" 
+               class="px-2 py-1 text-blue-700 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors font-medium"
+               title="Content ที่กำลังรันโฆษณาอยู่">
+                📢 Active Ads
+            </a>
+            <a href="/contents/tiktok?boosted=true" 
+               class="px-2 py-1 text-blue-700 hover:text-blue-900 hover:bg-blue-50 rounded transition-colors font-medium"
+               title="Content ที่มี Boost Factor > 1">
+                ⚡ Boosted
+            </a>
+            
+            <!-- Attention Group -->
+            <span class="text-gray-400">|</span>
+            <a href="/contents/tiktok?need_attention=true" 
+               class="px-2 py-1 text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded transition-colors font-medium"
+               title="Content ที่ยังไม่มี Product หรือ Type">
+                ⚠️ Need Attention
+            </a>
+            <a href="/contents/tiktok?expiring=soon" 
+               class="px-2 py-1 text-red-700 hover:text-red-900 hover:bg-red-50 rounded transition-colors font-medium"
+               title="Content ที่จะหมดอายุใน 7 วัน">
+                📅 Expiring Soon
+            </a>
+            <a href="/contents/tiktok?no_targeting=true" 
+               class="px-2 py-1 text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded transition-colors font-medium"
+               title="Content ที่ยังไม่ได้ตั้ง Targeting">
+                🎯 No Targeting
+            </a>
+            
+            <!-- Recent -->
+            <span class="text-gray-400">|</span>
+            <a href="/contents/tiktok?sort=platform_created_at&dir=desc" 
+               class="px-2 py-1 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors font-medium"
+               title="Content ล่าสุด">
+                🕐 Recent
+            </a>
         </div>
     </div>
     
@@ -379,6 +559,14 @@
                                                   class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all"
                                                   :class="{'bg-pink-100 text-pink-700 hover:ring-pink-300': content.content_source === 'influencer', 'bg-indigo-100 text-indigo-700 hover:ring-indigo-300': content.content_source === 'page', 'bg-teal-100 text-teal-700 hover:ring-teal-300': content.content_source === 'staff'}"
                                                   x-text="getContentSourceLabel(content.content_source)"></button>
+                                            <!-- Content Tags - Display as small badges (Clickable for filtering) -->
+                                            <template x-for="tag in (content.content_tags || [])" :key="tag">
+                                                <button @click="filterByTag(tag)"
+                                                      class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-amber-300 transition-all"
+                                                      :class="filters.content_tag === tag ? 'ring-2 ring-offset-1 ring-amber-400 bg-amber-200' : ''">
+                                                    <span x-text="tag"></span>
+                                                </button>
+                                            </template>
                                             <!-- Boost Badge -->
                                             <span x-show="content.boost_factor > 1" class="inline-flex px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-medium">⚡x<span x-text="content.boost_factor"></span></span>
                                             <!-- Expire Date Badge - Only filter if expiring soon (red) -->
@@ -396,14 +584,31 @@
                                 </div>
                             </td>
                             
-                            <!-- Creator -->
+                            <!-- Creator + Staff -->
                             <td class="px-4 py-3">
-                                <button x-show="content.creator_name" 
-                                        @click="filterByCreator(content.creator_name)"
-                                        class="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left"
-                                        x-text="content.creator_name">
-                                </button>
-                                <span x-show="!content.creator_name" class="text-gray-400">-</span>
+                                <div class="space-y-1">
+                                    <!-- Creator (Influencer) -->
+                                    <button x-show="content.creator_name" 
+                                            @click="filterByCreator(content.creator_name)"
+                                            class="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left block"
+                                            x-text="content.creator_name">
+                                    </button>
+                                    <span x-show="!content.creator_name && (!content.staff_allocations || content.staff_allocations.length === 0)" class="text-gray-400">-</span>
+                                    <!-- Staff Allocations (พนักงานที่ทำคลิป) -->
+                                    <template x-if="content.staff_allocations && content.staff_allocations.length > 0">
+                                        <div class="flex flex-wrap items-center gap-1">
+                                            <template x-for="staff in content.staff_allocations" :key="staff.employee_id">
+                                                <button @click="filterByStaff(staff.employee_id, staff.employee_name)"
+                                                      class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700 border border-violet-200 cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-violet-300 transition-all"
+                                                      :class="filters.staff_id == staff.employee_id ? 'ring-2 ring-offset-1 ring-violet-400 bg-violet-200' : ''"
+                                                      :title="getRoleLabel(staff.role) + ' (' + staff.percentage + '%)'">
+                                                    <span x-text="staff.employee_name || 'พนักงาน'"></span>
+                                                    <span class="text-violet-400 text-[8px]" x-text="staff.percentage + '%'"></span>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
                             </td>
                             
                             <!-- Views -->
@@ -495,13 +700,13 @@
                                             <span class="font-medium" x-text="'฿' + formatMoney(content.influencer_cost)"></span>
                                         </div>
                                     </template>
-                                    <template x-if="content.ads_total_cost > 0">
+                                    <template x-if="content.ads_count > 0">
                                         <div class="flex items-center justify-end gap-1 text-green-600">
                                             <span class="text-[10px] text-gray-400">Ads:</span>
-                                            <span class="font-medium" x-text="'฿' + formatMoney(content.ads_total_cost)"></span>
+                                            <span class="font-medium" x-text="'฿' + formatMoney(content.ads_total_cost || 0)"></span>
                                         </div>
                                     </template>
-                                    <template x-if="!content.influencer_cost && !content.ads_total_cost">
+                                    <template x-if="(!content.influencer_cost || content.influencer_cost === 0) && (!content.ads_count || content.ads_count === 0)">
                                         <span class="text-gray-400">-</span>
                                     </template>
                                 </div>
@@ -880,16 +1085,91 @@
                     </select>
                 </div>
                 
-                <!-- Employee (if Staff) -->
-                <div x-show="editForm.content_source === 'staff'">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">พนักงานที่ทำคลิป</label>
-                    <select x-model="editForm.employee_id" 
-                            class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm">
-                        <option value="">-- เลือกพนักงาน --</option>
-                        <template x-for="emp in employees" :key="emp.id">
-                            <option :value="emp.id" x-text="emp.employee_code + ' - ' + emp.full_name"></option>
+                <!-- Staff Allocations (Multi-staff with role and percentage) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        พนักงานที่ทำคลิป
+                        <span class="text-xs text-gray-500 font-normal">(สามารถเลือกหลายคน พร้อม % และบทบาท)</span>
+                    </label>
+                    
+                    <!-- Staff Allocation List -->
+                    <div class="space-y-2 mb-3">
+                        <template x-for="(allocation, index) in editForm.staff_allocations" :key="index">
+                            <div class="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                <div class="flex-1 grid grid-cols-12 gap-2">
+                                    <!-- Employee -->
+                                    <div class="col-span-4">
+                                        <select x-model="allocation.employee_id" 
+                                                @change="updateStaffAllocationTotal()"
+                                                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500">
+                                            <option value="">-- เลือกพนักงาน --</option>
+                                            <template x-for="emp in employees" :key="emp.id">
+                                                <option :value="emp.id" x-text="emp.employee_code + ' - ' + emp.full_name"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <!-- Role -->
+                                    <div class="col-span-3">
+                                        <select x-model="allocation.role" 
+                                                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500">
+                                            <option value="actor">นักแสดง</option>
+                                            <option value="editor">ตัดต่อ</option>
+                                            <option value="creative">Creative</option>
+                                            <option value="cameraman">ตากล้อง</option>
+                                            <option value="director">ผู้กำกับ</option>
+                                            <option value="producer">โปรดิวเซอร์</option>
+                                            <option value="other">อื่นๆ</option>
+                                        </select>
+                                    </div>
+                                    <!-- Percentage -->
+                                    <div class="col-span-3">
+                                        <input type="number" 
+                                               x-model.number="allocation.percentage" 
+                                               @input="updateStaffAllocationTotal()"
+                                               min="0" 
+                                               max="100" 
+                                               step="0.01"
+                                               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-500">
+                                    </div>
+                                    <!-- Percentage Display -->
+                                    <div class="col-span-1 flex items-center">
+                                        <span class="text-xs text-gray-600">%</span>
+                                    </div>
+                                    <!-- Remove Button -->
+                                    <div class="col-span-1 flex items-center justify-end">
+                                        <button @click="removeStaffAllocation(index)" 
+                                                class="text-red-500 hover:text-red-700 p-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </template>
-                    </select>
+                    </div>
+                    
+                    <!-- Total Percentage -->
+                    <div class="mb-2 px-3 py-2 rounded-lg text-sm font-medium"
+                         :class="getStaffAllocationTotal() === 100 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'">
+                        <span>รวม: <span x-text="getStaffAllocationTotal().toFixed(2)"></span>%</span>
+                        <span x-show="getStaffAllocationTotal() !== 100" class="ml-2 text-xs">
+                            (ต้องรวมกัน = 100%)
+                        </span>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="flex gap-2">
+                        <button @click="addStaffAllocation()" 
+                                class="flex-1 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm font-medium border border-blue-300">
+                            <i class="fas fa-plus mr-2"></i>เพิ่มพนักงาน
+                        </button>
+                        <button @click="avgAllocateStaff()" 
+                                :disabled="editForm.staff_allocations.length === 0"
+                                class="flex-1 px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium border border-green-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-equals mr-2"></i>Avg Allocate
+                        </button>
+                    </div>
                 </div>
                 
                 <!-- Influencer Cost (if Influencer) -->
@@ -905,6 +1185,37 @@
                     <label class="block text-sm font-medium text-gray-700 mb-2">วันหมดอายุ Content</label>
                     <input type="date" x-model="editForm.expire_date" 
                            class="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-primary-500 text-sm">
+                </div>
+                
+                <!-- Content Tags -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Content Tags
+                        <span class="text-xs text-gray-500 font-normal">(เช่น tutorial, unboxing, comparison)</span>
+                    </label>
+                    <div class="flex flex-wrap gap-2 mb-2">
+                        <template x-for="tag in editForm.content_tags" :key="tag">
+                            <span class="inline-flex items-center gap-1 px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">
+                                <span x-text="tag"></span>
+                                <button @click="removeTag(tag)" class="hover:text-primary-900">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </span>
+                        </template>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" 
+                               x-model="newTagInput"
+                               @keydown.enter.prevent="addTag()"
+                               placeholder="พิมพ์ tag แล้วกด Enter"
+                               class="flex-1 border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:border-primary-500 text-sm">
+                        <button @click="addTag()" 
+                                class="px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 text-sm font-medium">
+                            เพิ่ม
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50">
@@ -1325,7 +1636,8 @@ function tiktokContentsPage() {
     return {
         contents: [],
         loading: true,
-        syncing: false,
+        syncingContent: false,
+        syncingAds: false,
         calculating: false,
         importing: false,
         saving: false,
@@ -1339,11 +1651,15 @@ function tiktokContentsPage() {
         showBulkModal: false,
         
         importText: '',
+        newTagInput: '',  // For adding content tags
         currentPage: 1,
         pageSize: 30,
         totalItems: 0,
         totalPages: 1,
         selectedIds: [],
+        
+        // Special mode (e.g., best_each_product)
+        specialMode: '{{ special_mode or "" }}',
         
         // Sorting
         sortField: 'platform_created_at',
@@ -1374,9 +1690,11 @@ function tiktokContentsPage() {
             selectedProducts: [],  // Array of product codes
             selectedTargetingIds: [],  // Array of targeting template IDs
             content_type: 'sale',
+            content_tags: [],
             status: 'ready',
             content_source: 'influencer',
-            employee_id: '',
+            staff_allocations: [],  // Array of {employee_id, role, percentage, notes}
+            employee_id: '', // Legacy - keep for backward compatibility
             influencer_cost: '',
             expire_date: ''
         },
@@ -1399,10 +1717,22 @@ function tiktokContentsPage() {
             status: '',
             content_type: '',
             content_source: '',
+            content_tag: '',
+            staff_id: '',
+            staff_name: '',
             search: '',
             creator: '',
             expiring: '',
-            products: []
+            products: [],
+            // Advanced filters for shortcuts
+            sort_by: '',
+            sort_dir: 'desc',
+            min_pfm: '',
+            min_views: '',
+            boosted: '',
+            need_attention: '',
+            no_targeting: '',
+            has_ads: ''
         },
         stats: {
             total: {{ stats.total }},
@@ -1433,14 +1763,24 @@ function tiktokContentsPage() {
             if (urlParams.has('status')) this.filters.status = urlParams.get('status');
             if (urlParams.has('type')) this.filters.content_type = urlParams.get('type');
             if (urlParams.has('source')) this.filters.content_source = urlParams.get('source');
+            if (urlParams.has('tag')) this.filters.content_tag = urlParams.get('tag');
+            if (urlParams.has('staff')) this.filters.staff_id = urlParams.get('staff');
             if (urlParams.has('q')) this.filters.search = urlParams.get('q');
             if (urlParams.has('creator')) this.filters.creator = urlParams.get('creator');
             if (urlParams.has('expiring')) this.filters.expiring = urlParams.get('expiring');
             if (urlParams.has('products')) this.filters.products = urlParams.get('products').split('+').filter(p => p);
             if (urlParams.has('page')) this.currentPage = parseInt(urlParams.get('page')) || 1;
+            if (urlParams.has('page_size')) this.pageSize = parseInt(urlParams.get('page_size')) || 20;
             // Sort params
-            if (urlParams.has('sort')) this.sortField = urlParams.get('sort');
-            if (urlParams.has('dir')) this.sortDir = urlParams.get('dir');
+            if (urlParams.has('sort')) this.filters.sort_by = urlParams.get('sort');
+            if (urlParams.has('dir')) this.filters.sort_dir = urlParams.get('dir');
+            // Advanced filters for shortcuts
+            if (urlParams.has('min_pfm')) this.filters.min_pfm = urlParams.get('min_pfm');
+            if (urlParams.has('min_views')) this.filters.min_views = urlParams.get('min_views');
+            if (urlParams.has('boosted')) this.filters.boosted = urlParams.get('boosted');
+            if (urlParams.has('need_attention')) this.filters.need_attention = urlParams.get('need_attention');
+            if (urlParams.has('no_targeting')) this.filters.no_targeting = urlParams.get('no_targeting');
+            if (urlParams.has('has_ads')) this.filters.has_ads = urlParams.get('has_ads');
         },
         
         // Update URL with current filters (without page reload)
@@ -1450,14 +1790,24 @@ function tiktokContentsPage() {
             if (this.filters.status) params.set('status', this.filters.status);
             if (this.filters.content_type) params.set('type', this.filters.content_type);
             if (this.filters.content_source) params.set('source', this.filters.content_source);
+            if (this.filters.content_tag) params.set('tag', this.filters.content_tag);
+            if (this.filters.staff_id) params.set('staff', this.filters.staff_id);
             if (this.filters.search) params.set('q', this.filters.search);
             if (this.filters.creator) params.set('creator', this.filters.creator);
             if (this.filters.expiring) params.set('expiring', this.filters.expiring);
             if (this.filters.products && this.filters.products.length > 0) params.set('products', this.filters.products.join('+'));
             if (this.currentPage > 1) params.set('page', this.currentPage);
+            if (this.pageSize !== 20) params.set('page_size', this.pageSize);
             // Sort params
-            if (this.sortField && this.sortField !== 'platform_created_at') params.set('sort', this.sortField);
-            if (this.sortDir && this.sortDir !== 'desc') params.set('dir', this.sortDir);
+            if (this.filters.sort_by) params.set('sort', this.filters.sort_by);
+            if (this.filters.sort_dir && this.filters.sort_dir !== 'desc') params.set('dir', this.filters.sort_dir);
+            // Advanced filters for shortcuts
+            if (this.filters.min_pfm) params.set('min_pfm', this.filters.min_pfm);
+            if (this.filters.min_views) params.set('min_views', this.filters.min_views);
+            if (this.filters.boosted) params.set('boosted', this.filters.boosted);
+            if (this.filters.need_attention) params.set('need_attention', this.filters.need_attention);
+            if (this.filters.no_targeting) params.set('no_targeting', this.filters.no_targeting);
+            if (this.filters.has_ads) params.set('has_ads', this.filters.has_ads);
             
             const queryString = params.toString();
             const newURL = queryString 
@@ -1483,22 +1833,45 @@ function tiktokContentsPage() {
         async loadContents() {
             this.loading = true;
             try {
-                const filterParams = {...this.filters};
-                // Convert products array to comma-separated string for API
-                if (filterParams.products && filterParams.products.length > 0) {
-                    filterParams.products = filterParams.products.join(',');
+                let response;
+                
+                // Check for special mode (e.g., best_each_product)
+                if (this.specialMode === 'best_each_product') {
+                    response = await fetch('/api/v1/contents/best-each-product?platform=tiktok');
                 } else {
-                    delete filterParams.products;
+                    const filterParams = {...this.filters};
+                    // Convert products array to comma-separated string for API
+                    if (filterParams.products && filterParams.products.length > 0) {
+                        filterParams.products = filterParams.products.join(',');
+                    } else {
+                        delete filterParams.products;
+                    }
+                    // staff_name is display-only, don't send to API
+                    delete filterParams.staff_name;
+                    // Don't send empty staff_id
+                    if (!filterParams.staff_id) {
+                        delete filterParams.staff_id;
+                    }
+                    // Clean up empty advanced filter params
+                    if (!filterParams.sort_by) delete filterParams.sort_by;
+                    if (!filterParams.sort_dir || filterParams.sort_dir === 'desc') delete filterParams.sort_dir;
+                    if (!filterParams.min_pfm) delete filterParams.min_pfm;
+                    if (!filterParams.min_views) delete filterParams.min_views;
+                    if (!filterParams.boosted) delete filterParams.boosted;
+                    if (!filterParams.need_attention) delete filterParams.need_attention;
+                    if (!filterParams.no_targeting) delete filterParams.no_targeting;
+                    if (!filterParams.has_ads) delete filterParams.has_ads;
+                    
+                    const params = new URLSearchParams({
+                        page: this.currentPage,
+                        page_size: this.pageSize,
+                        platform: 'tiktok',
+                        ...filterParams
+                    });
+                    
+                    response = await fetch(`/api/v1/contents?${params}`);
                 }
                 
-                const params = new URLSearchParams({
-                    page: this.currentPage,
-                    page_size: this.pageSize,
-                    platform: 'tiktok',
-                    ...filterParams
-                });
-                
-                const response = await fetch(`/api/v1/contents?${params}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -1506,8 +1879,10 @@ function tiktokContentsPage() {
                     this.totalItems = data.total;
                     this.totalPages = data.pages;
                     
-                    // Update URL with current filters
-                    this.updateURL();
+                    // Update URL with current filters (skip for special mode)
+                    if (!this.specialMode) {
+                        this.updateURL();
+                    }
                     
                     // Calculate additional stats
                     this.stats.total = data.total;
@@ -1592,6 +1967,70 @@ function tiktokContentsPage() {
             this.editForm.selectedProducts = this.editForm.selectedProducts.filter(c => c !== code);
         },
         
+        // Content Tags
+        addTag() {
+            const tag = this.newTagInput.trim();
+            if (tag && !this.editForm.content_tags.includes(tag)) {
+                this.editForm.content_tags.push(tag);
+                this.newTagInput = '';
+            }
+        },
+        
+        removeTag(tag) {
+            this.editForm.content_tags = this.editForm.content_tags.filter(t => t !== tag);
+        },
+        
+        // Staff Allocations
+        addStaffAllocation() {
+            this.editForm.staff_allocations.push({
+                employee_id: '',
+                role: 'other',
+                percentage: 0,
+                notes: ''
+            });
+        },
+        
+        removeStaffAllocation(index) {
+            this.editForm.staff_allocations.splice(index, 1);
+            this.updateStaffAllocationTotal();
+        },
+        
+        updateStaffAllocationTotal() {
+            // Trigger reactivity for total calculation
+            // This is just for display, actual validation is in saveContentEdit
+        },
+        
+        getStaffAllocationTotal() {
+            return this.editForm.staff_allocations.reduce((sum, sa) => {
+                return sum + (parseFloat(sa.percentage) || 0);
+            }, 0);
+        },
+        
+        avgAllocateStaff() {
+            // แบ่ง % เท่าๆ กันให้ทุกคนที่เลือกพนักงานแล้ว
+            const validAllocations = this.editForm.staff_allocations.filter(sa => sa.employee_id);
+            if (validAllocations.length === 0) {
+                this.showToast('กรุณาเลือกพนักงานก่อน', 'error');
+                return;
+            }
+            
+            // คำนวณ % เท่าๆ กัน
+            const avgPercentage = 100 / validAllocations.length;
+            const remainder = 100 - (Math.floor(avgPercentage * 100) / 100 * validAllocations.length);
+            
+            // แบ่งให้ทุกคน
+            validAllocations.forEach((sa, index) => {
+                // คนแรกจะได้เศษที่เหลือ (ถ้ามี) เพื่อให้รวม = 100%
+                if (index === 0) {
+                    sa.percentage = Math.round((avgPercentage + remainder) * 100) / 100;
+                } else {
+                    sa.percentage = Math.round(avgPercentage * 100) / 100;
+                }
+            });
+            
+            this.updateStaffAllocationTotal();
+        },
+        
         getProductName(code) {
             const product = this.allProducts.find(p => p.code === code);
             return product ? product.name : '';
@@ -1648,13 +2087,14 @@ function tiktokContentsPage() {
         },
         
         async syncContent() {
-            this.syncing = true;
+            this.syncingContent = true;
             try {
-                const response = await fetch('/api/v1/contents/sync', { method: 'POST' });
+                const response = await window.apiRequest('/api/v1/contents/sync', { method: 'POST' });
                 const data = await response.json();
                 
                 if (data.success) {
-                    this.showToast(`Sync สำเร็จ! ${data.data.synced} รายการ`, 'success');
+                    const contentSynced = data.data.synced || 0;
+                    this.showToast(`Sync Content สำเร็จ! ${contentSynced} รายการ`, 'success');
                     this.loadContents();
                 } else {
                     this.showToast(data.message || 'Sync ไม่สำเร็จ', 'error');
@@ -1662,7 +2102,35 @@ function tiktokContentsPage() {
             } catch (err) {
                 this.showToast('เกิดข้อผิดพลาด', 'error');
             } finally {
-                this.syncing = false;
+                this.syncingContent = false;
+            }
+        },
+        
+        async syncAds() {
+            this.syncingAds = true;
+            try {
+                // days default=7 (override ได้ผ่าน querystring: ?sync_ads_days=2)
+                const qs = new URLSearchParams(window.location.search);
+                const rawDays = qs.get('sync_ads_days') || qs.get('ads_days') || '7';
+                const days = Math.max(1, Math.min(31, parseInt(rawDays, 10) || 7));
+                // ดึง ads ที่มี spend ใน N วันล่าสุด พร้อม lifetime cost
+                const response = await window.apiRequest(`/api/v1/contents/sync-ads?days=${days}`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const adsSynced = data.data.ads_synced || 0;
+                    const mappedContents = data.data.mapped_contents || 0;
+                    const totalSpend = data.data.total_spend || 0;
+                    const spendFormatted = totalSpend.toLocaleString('th-TH', { minimumFractionDigits: 2 });
+                    this.showToast(`Sync Ads สำเร็จ! ${adsSynced} ads (฿${spendFormatted}), mapped ${mappedContents} contents`, 'success');
+                    this.loadContents();
+                } else {
+                    this.showToast(data.message || 'Sync Ads ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                this.showToast('เกิดข้อผิดพลาด', 'error');
+            } finally {
+                this.syncingAds = false;
             }
         },
         
@@ -1745,6 +2213,35 @@ function tiktokContentsPage() {
             this.loadContents();
         },
         
+        // Filter by Tag
+        filterByTag(tag) {
+            this.filters.content_tag = tag || '';
+            this.currentPage = 1;
+            this.loadContents();
+        },
+        
+        // Filter by Staff
+        filterByStaff(staffId, staffName) {
+            this.filters.staff_id = staffId || '';
+            this.filters.staff_name = staffName || '';
+            this.currentPage = 1;
+            this.loadContents();
+        },
+        
+        // Get Role Label
+        getRoleLabel(role) {
+            const labels = {
+                'actor': 'นักแสดง',
+                'editor': 'ตัดต่อ',
+                'creative': 'Creative',
+                'cameraman': 'ช่างภาพ',
+                'director': 'ผู้กำกับ',
+                'producer': 'โปรดิวเซอร์',
+                'other': 'อื่นๆ'
+            };
+            return labels[role] || role || 'อื่นๆ';
+        },
+        
         // Filter by Status
         filterByStatus(status) {
             this.filters.status = status || '';
@@ -1761,7 +2258,15 @@ function tiktokContentsPage() {
         
         // Clear specific filter
         clearFilter(filterName) {
-            this.filters[filterName] = '';
+            if (filterName === 'staff') {
+                this.filters.staff_id = '';
+                this.filters.staff_name = '';
+            } else if (filterName === 'sort') {
+                this.filters.sort_by = '';
+                this.filters.sort_dir = 'desc';
+            } else {
+                this.filters[filterName] = '';
+            }
             this.currentPage = 1;
             this.loadContents();
         },
@@ -1784,43 +2289,92 @@ function tiktokContentsPage() {
                 selectedProducts: content.product_codes || [],
                 selectedTargetingIds: content.preferred_targeting_ids || [],
                 content_type: content.content_type || 'sale',
+                content_tags: content.content_tags || [],
                 status: content.status || 'ready',
                 content_source: content.content_source || 'influencer',
-                employee_id: content.employee_id || '',
+                staff_allocations: (content.staff_allocations || []).map(sa => ({
+                    id: sa.id,
+                    employee_id: sa.employee_id,
+                    role: sa.role || 'other',
+                    percentage: sa.percentage || 0,
+                    notes: sa.notes || ''
+                })),
+                employee_id: content.employee_id || '', // Legacy - keep for backward compatibility
                 influencer_cost: content.influencer_cost || '',
                 expire_date: content.expire_date || ''
             };
+            // ถ้าไม่มี staff_allocations แต่มี employee_id (legacy) ให้เพิ่มเข้าไป
+            if (this.editForm.staff_allocations.length === 0 && this.editForm.employee_id) {
+                this.editForm.staff_allocations = [{
+                    employee_id: parseInt(this.editForm.employee_id),
+                    role: 'other',
+                    percentage: 100,
+                    notes: ''
+                }];
+            }
+            this.newTagInput = '';
             this.showEditModal = true;
         },
         
         async saveContentEdit() {
+            // Validate staff allocations percentage (only if there are allocations with employee_id)
+            const validAllocations = this.editForm.staff_allocations.filter(sa => sa.employee_id);
+            if (validAllocations.length > 0) {
+                const totalPercentage = this.getStaffAllocationTotal();
+                if (Math.abs(totalPercentage - 100) > 0.01) {
+                    this.showToast(`Percentage ต้องรวมกัน = 100% (ปัจจุบัน: ${totalPercentage.toFixed(2)}%)`, 'error');
+                    return;
+                }
+            }
+            
             this.saving = true;
             try {
+                const payload = {
+                    product_codes: this.editForm.selectedProducts,
+                    preferred_targeting_ids: this.editForm.selectedTargetingIds,
+                    content_type: this.editForm.content_type,
+                    content_tags: this.editForm.content_tags || [],
+                    status: this.editForm.status,
+                    content_source: this.editForm.content_source,
+                    staff_allocations: this.editForm.staff_allocations
+                        .filter(sa => sa.employee_id) // Filter out empty allocations
+                        .map(sa => ({
+                            employee_id: parseInt(sa.employee_id), // Ensure it's an integer
+                            role: sa.role || 'other',
+                            percentage: parseFloat(sa.percentage) || 0,
+                            notes: sa.notes || ''
+                        })),
+                    employee_id: this.editForm.employee_id || null, // Legacy - keep for backward compatibility
+                    influencer_cost: this.editForm.influencer_cost || null,
+                    expire_date: this.editForm.expire_date || null
+                };
+                
+                console.log('[saveContentEdit] Sending payload:', payload);
+                
                 const response = await fetch(`/api/v1/contents/${this.editingContent.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        product_codes: this.editForm.selectedProducts,
-                        preferred_targeting_ids: this.editForm.selectedTargetingIds,
-                        content_type: this.editForm.content_type,
-                        status: this.editForm.status,
-                        content_source: this.editForm.content_source,
-                        employee_id: this.editForm.employee_id || null,
-                        influencer_cost: this.editForm.influencer_cost || null,
-                        expire_date: this.editForm.expire_date || null
-                    })
+                    body: JSON.stringify(payload)
                 });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+                    throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+                }
+                
                 const data = await response.json();
+                console.log('[saveContentEdit] Response:', data);
                 
                 if (data.success) {
                     this.showToast('บันทึกสำเร็จ', 'success');
                     this.showEditModal = false;
                     this.loadContents();
                 } else {
-                    this.showToast(data.message || 'บันทึกไม่สำเร็จ', 'error');
+                    this.showToast(data.message || data.detail || 'บันทึกไม่สำเร็จ', 'error');
                 }
             } catch (err) {
-                this.showToast('เกิดข้อผิดพลาด', 'error');
+                console.error('Error saving content:', err);
+                this.showToast('เกิดข้อผิดพลาด: ' + (err.message || 'Unknown error'), 'error');
             } finally {
                 this.saving = false;
             }

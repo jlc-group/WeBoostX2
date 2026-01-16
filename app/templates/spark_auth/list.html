@@ -1,0 +1,393 @@
+{% extends "layouts/app.html" %}
+
+{% block title %}Auth Codes - Spark Ads{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filters-bar {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 24px;
+        align-items: center;
+    }
+    
+    .filters-bar select,
+    .filters-bar input {
+        min-width: 150px;
+    }
+    
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    .status-pending { background: #fff3cd; color: #856404; }
+    .status-authorized { background: #d4edda; color: #155724; }
+    .status-bound { background: #cce5ff; color: #004085; }
+    .status-used { background: #d1ecf1; color: #0c5460; }
+    .status-expired { background: #f8d7da; color: #721c24; }
+    .status-failed { background: #f5c6cb; color: #721c24; }
+    .status-revoked { background: #e2e3e5; color: #383d41; }
+    
+    .auth-code-cell {
+        font-family: monospace;
+        font-size: 12px;
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .days-badge {
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+    }
+    
+    .days-ok { background: #d4edda; color: #155724; }
+    .days-warning { background: #fff3cd; color: #856404; }
+    .days-danger { background: #f8d7da; color: #721c24; }
+    
+    .stats-row {
+        display: flex;
+        gap: 24px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+    
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .stat-item .count {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--primary-color, #667eea);
+    }
+    
+    .stat-item .label {
+        color: var(--text-muted, #6c757d);
+        font-size: 13px;
+    }
+    
+    .action-btn {
+        padding: 4px 8px;
+        font-size: 12px;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="page-header d-flex justify-content-between align-items-center">
+        <div>
+            <h1>🔑 Auth Codes</h1>
+            <p class="text-muted">จัดการ Auth Code จาก Influencers สำหรับ Spark Ads</p>
+        </div>
+        <a href="/spark-auth/import" class="btn btn-primary">
+            📤 Import Auth Codes
+        </a>
+    </div>
+    
+    <!-- Stats -->
+    <div class="stats-row" id="statsRow">
+        <div class="stat-item">
+            <span class="count" id="totalCount">-</span>
+            <span class="label">Total</span>
+        </div>
+        <div class="stat-item">
+            <span class="count" id="authorizedCount">-</span>
+            <span class="label">Authorized</span>
+        </div>
+        <div class="stat-item">
+            <span class="count" id="boundCount">-</span>
+            <span class="label">Bound</span>
+        </div>
+        <div class="stat-item">
+            <span class="count" id="usedCount">-</span>
+            <span class="label">Used</span>
+        </div>
+        <div class="stat-item">
+            <span class="count" id="expiredCount">-</span>
+            <span class="label">Expired</span>
+        </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filters-bar">
+        <select id="statusFilter" class="form-control">
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="authorized">Authorized</option>
+            <option value="bound">Bound</option>
+            <option value="used">Used</option>
+            <option value="expired">Expired</option>
+            <option value="failed">Failed</option>
+        </select>
+        
+        <select id="adAccountFilter" class="form-control">
+            <option value="">All Ad Accounts</option>
+        </select>
+        
+        <input type="text" id="batchFilter" class="form-control" placeholder="Batch Name...">
+        
+        <button class="btn btn-outline-secondary" onclick="loadAuthCodes()">🔍 Filter</button>
+        <button class="btn btn-outline-secondary" onclick="resetFilters()">✕ Reset</button>
+        
+        <div class="ms-auto">
+            <button class="btn btn-outline-primary" onclick="runAutoBind()">🔗 Auto-bind</button>
+            <button class="btn btn-outline-warning" onclick="runExpireCheck()">⏰ Expire Check</button>
+        </div>
+    </div>
+    
+    <!-- Table -->
+    <div class="card">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Auth Code</th>
+                        <th>Status</th>
+                        <th>Influencer</th>
+                        <th>Item ID</th>
+                        <th>Content</th>
+                        <th>Expires</th>
+                        <th>Batch</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody id="authCodesTable">
+                    <tr>
+                        <td colspan="8" class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2 text-muted">Loading...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <div class="text-muted" id="paginationInfo">-</div>
+        <div class="btn-group" id="paginationButtons"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPage = 0;
+    const pageSize = 50;
+    
+    // Load ad accounts for filter
+    async function loadAdAccounts() {
+        try {
+            const response = await fetch('/api/v1/ads/advertisers');
+            const result = await response.json();
+            
+            const select = document.getElementById('adAccountFilter');
+            result.data.forEach(acc => {
+                const option = document.createElement('option');
+                option.value = acc.id;
+                option.textContent = acc.name;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error loading ad accounts:', error);
+        }
+    }
+    
+    // Load stats
+    async function loadStats() {
+        try {
+            const response = await fetch('/api/v1/spark-auth/stats');
+            const stats = await response.json();
+            
+            document.getElementById('totalCount').textContent = stats.total || 0;
+            document.getElementById('authorizedCount').textContent = stats.authorized || 0;
+            document.getElementById('boundCount').textContent = stats.bound || 0;
+            document.getElementById('usedCount').textContent = stats.used || 0;
+            document.getElementById('expiredCount').textContent = stats.expired || 0;
+        } catch (error) {
+            console.error('Error loading stats:', error);
+        }
+    }
+    
+    // Load auth codes
+    async function loadAuthCodes(page = 0) {
+        currentPage = page;
+        
+        const status = document.getElementById('statusFilter').value;
+        const adAccountId = document.getElementById('adAccountFilter').value;
+        const batchName = document.getElementById('batchFilter').value;
+        
+        const params = new URLSearchParams({
+            limit: pageSize,
+            offset: page * pageSize,
+        });
+        
+        if (status) params.append('status', status);
+        if (adAccountId) params.append('ad_account_id', adAccountId);
+        if (batchName) params.append('batch_name', batchName);
+        
+        try {
+            const response = await fetch(`/api/v1/spark-auth/list?${params}`);
+            const result = await response.json();
+            
+            renderTable(result.items);
+            renderPagination(result.total);
+            
+        } catch (error) {
+            console.error('Error loading auth codes:', error);
+            document.getElementById('authCodesTable').innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-danger py-5">
+                        Error loading data: ${error.message}
+                    </td>
+                </tr>
+            `;
+        }
+    }
+    
+    function renderTable(items) {
+        const tbody = document.getElementById('authCodesTable');
+        
+        if (items.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-5 text-muted">
+                        ไม่พบข้อมูล
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = items.map(item => {
+            const daysClass = item.days_until_expire < 0 ? '' :
+                              item.days_until_expire <= 7 ? 'days-danger' :
+                              item.days_until_expire <= 30 ? 'days-warning' : 'days-ok';
+            
+            return `
+                <tr>
+                    <td class="auth-code-cell" title="${item.auth_code}">
+                        <code>${item.auth_code}</code>
+                    </td>
+                    <td>
+                        <span class="status-badge status-${item.status}">${item.status}</span>
+                    </td>
+                    <td>
+                        ${item.influencer_name || '-'}
+                        ${item.creator_username ? `<br><small class="text-muted">${item.creator_username}</small>` : ''}
+                    </td>
+                    <td>
+                        ${item.item_id ? `<code>${item.item_id}</code>` : '-'}
+                    </td>
+                    <td>
+                        ${item.content_id ? `<a href="/contents?id=${item.content_id}">#${item.content_id}</a>` : '-'}
+                    </td>
+                    <td>
+                        ${item.auth_end_time ? `
+                            <span class="days-badge ${daysClass}">
+                                ${item.days_until_expire >= 0 ? `${item.days_until_expire} days` : 'Expired'}
+                            </span>
+                        ` : '-'}
+                    </td>
+                    <td>${item.batch_name || '-'}</td>
+                    <td>
+                        <small>${item.created_at ? new Date(item.created_at).toLocaleDateString('th-TH') : '-'}</small>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+    
+    function renderPagination(total) {
+        const totalPages = Math.ceil(total / pageSize);
+        const info = document.getElementById('paginationInfo');
+        const buttons = document.getElementById('paginationButtons');
+        
+        const start = currentPage * pageSize + 1;
+        const end = Math.min((currentPage + 1) * pageSize, total);
+        info.textContent = `แสดง ${start}-${end} จาก ${total} รายการ`;
+        
+        let html = '';
+        
+        if (currentPage > 0) {
+            html += `<button class="btn btn-outline-secondary" onclick="loadAuthCodes(${currentPage - 1})">← Prev</button>`;
+        }
+        
+        for (let i = 0; i < totalPages && i < 5; i++) {
+            const pageNum = currentPage < 3 ? i : currentPage - 2 + i;
+            if (pageNum >= totalPages) break;
+            
+            html += `
+                <button class="btn ${pageNum === currentPage ? 'btn-primary' : 'btn-outline-secondary'}" 
+                        onclick="loadAuthCodes(${pageNum})">
+                    ${pageNum + 1}
+                </button>
+            `;
+        }
+        
+        if (currentPage < totalPages - 1) {
+            html += `<button class="btn btn-outline-secondary" onclick="loadAuthCodes(${currentPage + 1})">Next →</button>`;
+        }
+        
+        buttons.innerHTML = html;
+    }
+    
+    function resetFilters() {
+        document.getElementById('statusFilter').value = '';
+        document.getElementById('adAccountFilter').value = '';
+        document.getElementById('batchFilter').value = '';
+        loadAuthCodes(0);
+    }
+    
+    async function runAutoBind() {
+        if (!confirm('ต้องการ run Auto-bind เพื่อจับคู่ Auth Code กับ Content หรือไม่?')) return;
+        
+        try {
+            const response = await fetch('/api/v1/spark-auth/run-auto-bind', { method: 'POST' });
+            const result = await response.json();
+            
+            alert(`Auto-bind completed!\nProcessed: ${result.processed}\nBound: ${result.bound}`);
+            loadAuthCodes();
+            loadStats();
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+    
+    async function runExpireCheck() {
+        if (!confirm('ต้องการ run Expire Check เพื่อตรวจสอบ Auth Code ที่หมดอายุหรือไม่?')) return;
+        
+        try {
+            const response = await fetch('/api/v1/spark-auth/run-expire-check', { method: 'POST' });
+            const result = await response.json();
+            
+            alert(`Expire check completed!\nExpired: ${result.expired_count}`);
+            loadAuthCodes();
+            loadStats();
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+    
+    // Init
+    loadAdAccounts();
+    loadStats();
+    loadAuthCodes();
+</script>
+{% endblock %}
+

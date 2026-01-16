@@ -14,7 +14,7 @@ NOTE:
 
 import json
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional, Tuple
 
 import httpx
 from sqlalchemy.orm import Session
@@ -22,14 +22,15 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models import (
-    AdAccount,
-    Campaign,
-    AdGroup,
     Ad,
+    AdAccount,
+    AdGroup,
+    Campaign,
     Content,
     Platform,
 )
-from app.models.enums import AdAccountStatus, AdStatus, Platform as PlatformEnum
+from app.models.enums import AdAccountStatus, AdStatus
+from app.models.enums import Platform as PlatformEnum
 from app.services.tiktok_service import TikTokService
 
 
@@ -81,6 +82,7 @@ class TikTokAdsService:
 
         - ใช้ endpoint `/ad/get/` ของ TikTok Business API
         - ใช้ pagination ผ่าน field `page_info`
+        - ถ้า days = -1 หรือ None จะดึง ads ทั้งหมดโดยไม่มี filter (full sync)
         """
 
         token = cls._get_access_token()
@@ -88,13 +90,8 @@ class TikTokAdsService:
             print("[TikTokAdsService] Missing access token, skip fetch_ads_last_days")
             return []
 
+        # days = -1 หรือ None หมายถึงไม่ใช้ filter (ดึง ads ทั้งหมด)
         use_date_filter = days is not None and days > 0
-
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=days if use_date_filter else 0)
-
-        start_str = start_date.strftime("%Y-%m-%d %H:%M:%S")
-        end_str = end_date.strftime("%Y-%m-%d %H:%M:%S")
 
         all_ads: List[Dict] = []
         page = 1
@@ -117,24 +114,30 @@ class TikTokAdsService:
                             "campaign_name",
                             "ad_text",
                             "display_name",
-                            # Campaign/AdGroup objective & optimization
-                            "objective_type",
-                            "optimization_goal",
                             "create_time",
                             "secondary_status",
                             "modify_time",
                         ]
                     ),
                     "page": page,
-                    "page_size": 100,
+                    "page_size": 1000,  # ใช้ page_size 1000 เหมือนระบบเก่า
                 }
 
+                # ถ้ามี filter ตาม creation time
                 if use_date_filter:
+                    end_date = datetime.utcnow()
+                    start_date = end_date - timedelta(days=days)
+                    start_str = start_date.strftime("%Y-%m-%d %H:%M:%S")
+                    end_str = end_date.strftime("%Y-%m-%d %H:%M:%S")
+                    
                     filtering = {
                         "creation_filter_start_time": start_str,
                         "creation_filter_end_time": end_str,
                     }
                     params["filtering"] = json.dumps(filtering)
+                    print(f"[TikTokAdsService] Fetching ads created in last {days} days")
+                else:
+                    print(f"[TikTokAdsService] Fetching ALL ads (no date filter)")
 
                 url = f"{cls.BASE_URL}/ad/get/"
 
@@ -157,11 +160,14 @@ class TikTokAdsService:
                     break
 
                 if not isinstance(data, dict) or "data" not in data:
+                    print(f"[TikTokAdsService] Unexpected response: {data}")
                     break
 
                 d = data["data"]
                 ads = d.get("list") or []
                 if not ads:
+                    if page == 1:
+                        print(f"[TikTokAdsService] No ads found for advertiser_id={advertiser_id}")
                     break
 
                 all_ads.extend(ads)
@@ -177,6 +183,176 @@ class TikTokAdsService:
                     break
                 page += 1
 
+
+        return all_ads
+
+    @classmethod
+    def fetch_active_ad_ids_with_spend(
+        cls, advertiser_id: str, days: int = 7
+    ) -> Dict[str, float]:
+        """
+        ดึง ad_ids ที่มี spend ภายใน N วันที่ผ่านมา
+        
+        ใช้ report endpoint เพื่อดึงเฉพาะ ads ที่มี activity
+        ไม่ต้องระบุ ad_ids ล่วงหน้า - จะดึงทั้งหมดที่มี spend
+        
+        Returns:
+            Dict[ad_id, spend_in_period] - ad_id และ spend ในช่วง N วัน
+        """
+        token = cls._get_access_token()
+        if not token:
+            print("[TikTokAdsService] Missing access token, skip fetch_active_ad_ids_with_spend")
+            return {}
+        
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+        
+        ad_spend_map: Dict[str, float] = {}
+        page = 1
+        
+        with cls._get_client() as client:
+            url = f"{cls.BASE_URL}/report/integrated/get/"
+            
+            while True:
+                params = {
+                    "advertiser_id": advertiser_id,
+                    "report_type": "BASIC",
+                    "data_level": "AUCTION_AD",
+                    "dimensions": json.dumps(["ad_id"]),
+                    "metrics": json.dumps(["spend"]),
+                    "start_date": start_date.strftime("%Y-%m-%d"),
+                    "end_date": end_date.strftime("%Y-%m-%d"),
+                    "page": page,
+                    "page_size": 1000,
+                }
+                
+                try:
+                    resp = client.get(
+                        url,
+                        headers={"Access-Token": token},
+                        params=params,
+                    )
+                    
+                    if resp.status_code != 200:
+                        print(f"[TikTokAdsService] fetch_active_ad_ids error {resp.status_code}")
+                        break
+                    
+                    data = resp.json()
+                    if data.get("code") != 0:
+                        print(f"[TikTokAdsService] fetch_active_ad_ids API error: {data.get('message')}")
+                        break
+                    
+                    reports = data.get("data", {}).get("list", [])
+                    if not reports:
+                        break
+                    
+                    for report in reports:
+                        dims = report.get("dimensions", {})
+                        metrics = report.get("metrics", {})
+                        ad_id = dims.get("ad_id")
+                        spend = float(metrics.get("spend", 0) or 0)
+                        if ad_id and spend > 0:
+                            ad_spend_map[ad_id] = spend
+                    
+                    page_info = data.get("data", {}).get("page_info", {})
+                    total_page = page_info.get("total_page", 1)
+                    
+                    print(f"[TikTokAdsService] advertiser={advertiser_id} "
+                          f"page {page}/{total_page}, active_ads_so_far={len(ad_spend_map)}")
+                    
+                    if page >= total_page:
+                        break
+                    page += 1
+                    
+                except Exception as e:
+                    print(f"[TikTokAdsService] fetch_active_ad_ids exception: {e}")
+                    break
+        
+        print(f"[TikTokAdsService] Found {len(ad_spend_map)} active ads with spend in last {days} days")
+        return ad_spend_map
+
+    @classmethod
+    def fetch_ads_by_ids(cls, advertiser_id: str, ad_ids: List[str]) -> List[Dict]:
+        """
+        ดึง Ad metadata เฉพาะ ad_ids ที่ระบุ
+        
+        ใช้ filtering โดย ad_ids แทนการดึงทั้งหมด
+        """
+        if not ad_ids:
+            return []
+        
+        token = cls._get_access_token()
+        if not token:
+            print("[TikTokAdsService] Missing access token, skip fetch_ads_by_ids")
+            return []
+        
+        all_ads: List[Dict] = []
+        
+        with cls._get_client() as client:
+            # TikTok API allows filtering by ad_ids (max ~100 per request)
+            batch_size = 100
+            
+            for i in range(0, len(ad_ids), batch_size):
+                batch = ad_ids[i:i + batch_size]
+                page = 1
+                
+                while True:
+                    params = {
+                        "advertiser_id": advertiser_id,
+                        "fields": json.dumps([
+                            "advertiser_id",
+                            "campaign_id",
+                            "adgroup_id",
+                            "ad_id",
+                            "tiktok_item_id",
+                            "ad_name",
+                            "operation_status",
+                            "app_name",
+                            "adgroup_name",
+                            "campaign_name",
+                            "ad_text",
+                            "display_name",
+                            "create_time",
+                            "secondary_status",
+                            "modify_time",
+                        ]),
+                        "filtering": json.dumps({"ad_ids": batch}),
+                        "page": page,
+                        "page_size": 100,
+                    }
+                    
+                    try:
+                        resp = client.get(
+                            f"{cls.BASE_URL}/ad/get/",
+                            headers={"Access-Token": token},
+                            params=params,
+                        )
+                        
+                        if resp.status_code != 200:
+                            print(f"[TikTokAdsService] fetch_ads_by_ids error {resp.status_code}")
+                            break
+                        
+                        data = resp.json()
+                        if not isinstance(data, dict) or "data" not in data:
+                            break
+                        
+                        d = data["data"]
+                        ads = d.get("list") or []
+                        if not ads:
+                            break
+                        
+                        all_ads.extend(ads)
+                        
+                        page_info = d.get("page_info") or {}
+                        if page >= page_info.get("total_page", 1):
+                            break
+                        page += 1
+                        
+                    except Exception as e:
+                        print(f"[TikTokAdsService] fetch_ads_by_ids exception: {e}")
+                        break
+        
+        print(f"[TikTokAdsService] Fetched metadata for {len(all_ads)} ads")
         return all_ads
 
     @classmethod
@@ -494,17 +670,27 @@ class TikTokAdsService:
 
     @classmethod
     def sync_ads_for_account(
-        cls, db: Session, ad_account: AdAccount, days: int = 31
+        cls, db: Session, ad_account: AdAccount, days: int = 7
     ) -> Dict:
         """
         Sync Ads ของ AdAccount (TikTok Advertiser) หนึ่งบัญชี
-        - upsert Campaign / AdGroup / Ad
+        - ดึงเฉพาะ ads ที่มี spend ใน N วันล่าสุด (ไม่ดึงทั้งหมด)
+        - ดึง lifetime cost ของ ads เหล่านั้น
+        - upsert Campaign / AdGroup / Ad พร้อม total_spend
         - map Ad กลับไปหา Content (ผ่าน tiktok_item_id)
-        - อัปเดต ads_count และ ads_details ของ Content
+        - อัปเดต ads_count, ads_total_cost และ ads_details ของ Content
+        
+        Args:
+            days: จำนวนวันที่จะดึง ads ที่มี activity (default=7 วัน)
         """
-
-        ads_raw = cls.fetch_ads_last_days(ad_account.external_account_id, days=days)
-        if not ads_raw:
+        advertiser_id = ad_account.external_account_id
+        
+        # STEP 1: ดึง ad_ids ที่มี spend ใน N วันล่าสุด
+        print(f"[TikTokAdsService] Step 1: Finding ads with spend in last {days} days...")
+        active_ads_spend = cls.fetch_active_ad_ids_with_spend(advertiser_id, days=days)
+        
+        if not active_ads_spend:
+            print(f"[TikTokAdsService] No active ads found for {advertiser_id}")
             return {
                 "ads": 0,
                 "mapped_contents": 0,
@@ -512,7 +698,32 @@ class TikTokAdsService:
                 "item_ids_total": 0,
                 "ensure_stats": {"requested": 0, "created_or_updated": 0, "failed": 0},
                 "item_ids_unresolved": 0,
+                "total_spend_synced": 0,
             }
+        
+        active_ad_ids = list(active_ads_spend.keys())
+        print(f"[TikTokAdsService] Found {len(active_ad_ids)} ads with recent activity")
+        
+        # STEP 2: ดึง metadata ของ ads เหล่านั้น
+        print(f"[TikTokAdsService] Step 2: Fetching ad metadata...")
+        ads_raw = cls.fetch_ads_by_ids(advertiser_id, active_ad_ids)
+        if not ads_raw:
+            print(f"[TikTokAdsService] Could not fetch ad metadata")
+            return {
+                "ads": 0,
+                "mapped_contents": 0,
+                "ads_without_item_id": 0,
+                "item_ids_total": 0,
+                "ensure_stats": {"requested": 0, "created_or_updated": 0, "failed": 0},
+                "item_ids_unresolved": 0,
+                "total_spend_synced": 0,
+            }
+        
+        # STEP 3: ดึง lifetime spend ของ ads เหล่านั้น
+        print(f"[TikTokAdsService] Step 3: Fetching lifetime spend...")
+        lifetime_spend_map = cls.fetch_spend_for_ads(advertiser_id, active_ad_ids)
+        total_spend_synced = sum(lifetime_spend_map.values())
+        print(f"[TikTokAdsService] Total lifetime spend: {total_spend_synced:.2f}")
 
         # cache campaign/adgroup ตาม external_id -> instance
         campaign_cache: Dict[str, Campaign] = {}
@@ -691,6 +902,11 @@ class TikTokAdsService:
             # map status
             operation_status = ad_data.get("operation_status")
             ad.status = cls._map_operation_status(operation_status)
+            
+            # Update spend from lifetime spend map
+            ad_spend = lifetime_spend_map.get(ad_id, 0)
+            ad.total_spend = ad_spend
+            ad.last_synced_at = datetime.utcnow()
 
             # link to content
             if item_id and item_id in content_by_item:
@@ -700,7 +916,7 @@ class TikTokAdsService:
                 if not content.ad_account_id:
                     content.ad_account_id = ad_account.id
 
-                # เตรียม summary สำหรับ ads_details
+                # เตรียม summary สำหรับ ads_details (พร้อม spend)
                 ads_summary = {
                     "ad_id": ad_id,
                     "campaign_id": campaign_id,
@@ -713,6 +929,7 @@ class TikTokAdsService:
                     "secondary_status": ad_data.get("secondary_status"),
                     "create_time": ad_data.get("create_time"),
                     "modify_time": ad_data.get("modify_time"),
+                    "total_spend": float(ad_spend),  # lifetime spend
                 }
 
                 content_ads_map.setdefault(content.id, []).append(ads_summary)
@@ -762,13 +979,24 @@ class TikTokAdsService:
                 c.ace_ad_count = len(ace_ads)
                 c.abx_ad_count = len(abx_ads)
                 
-                # Update details
-                c.ace_details = ace_ads if ace_ads else None
-                c.abx_details = abx_ads if abx_ads else None
+                # Aggregate total spend from all ads of this content
+                content_total_spend = sum(
+                    ad_info.get("total_spend", 0) for ad_info in ads_list
+                )
+                c.ads_total_cost = content_total_spend
                 
-                details = c.ads_details or {}
-                details["tiktok"] = ads_list
-                c.ads_details = details
+                # Update details (use list copy to ensure SQLAlchemy detects change)
+                c.ace_details = list(ace_ads) if ace_ads else None
+                c.abx_details = list(abx_ads) if abx_ads else None
+                
+                # Ensure ads_details is a dict (might be list from old data)
+                existing_details = c.ads_details
+                if not isinstance(existing_details, dict):
+                    existing_details = {}
+                else:
+                    existing_details = dict(existing_details)  # make a copy
+                existing_details["tiktok"] = list(ads_list)
+                c.ads_details = existing_details  # reassign to trigger change detection
 
             db.commit()
 
@@ -781,12 +1009,19 @@ class TikTokAdsService:
             "item_ids_total": len(item_ids),
             "ensure_stats": ensure_stats,
             "item_ids_unresolved": len(unresolved_item_ids),
+            "total_spend_synced": total_spend_synced,
         }
 
     @classmethod
-    def sync_all_tiktok_ads(cls, days: int = 31) -> Dict:
+    def sync_all_tiktok_ads(cls, days: int = 7) -> Dict:
         """
         Helper สำหรับ job: sync Ads ของทุก TikTok AdAccount ในระบบ
+        
+        Args:
+            days: จำนวนวันที่จะดึง ads (default=7 วัน สำหรับ daily sync)
+                  - ใช้ 7 สำหรับ daily sync (แนะนำ)
+                  - ใช้ 31 สำหรับ monthly sync
+                  - ใช้ -1 สำหรับ full sync (ช้ามาก)
         """
         db = SessionLocal()
         total_ads = 0
@@ -795,6 +1030,7 @@ class TikTokAdsService:
         total_item_ids = 0
         total_detail_failed = 0
         total_unresolved = 0
+        total_spend = 0.0
 
         try:
             accounts: List[AdAccount] = (
@@ -816,6 +1052,7 @@ class TikTokAdsService:
                 total_contents += r.get("mapped_contents", 0)
                 total_ads_without_item += r.get("ads_without_item_id", 0)
                 total_item_ids += r.get("item_ids_total", 0)
+                total_spend += r.get("total_spend_synced", 0)
 
                 ensure = r.get("ensure_stats") or {}
                 total_detail_failed += ensure.get("failed", 0)
@@ -833,6 +1070,7 @@ class TikTokAdsService:
                 "item_ids_total": total_item_ids,
                 "item_detail_failed": total_detail_failed,
                 "item_ids_unresolved": total_unresolved,
+                "total_spend_synced": total_spend,
             }
 
         finally:
@@ -857,61 +1095,124 @@ class TikTokAdsService:
         if not token:
             print("[TikTokAdsService] Missing access token, skip fetch_spend_for_ads")
             return {}
-        
+
+        # region agent log
+        import json as _json  # type: ignore
+        import os as _os  # type: ignore
+        import time as _time  # type: ignore
+        def _agent_log(hypothesisId: str, location: str, message: str, data: dict):
+            try:
+                payload = {
+                    "sessionId": "debug-session",
+                    "runId": "investigate-400",
+                    "hypothesisId": hypothesisId,
+                    "location": location,
+                    "message": message,
+                    "data": data,
+                    "timestamp": int(_time.time() * 1000),
+                }
+                _os.makedirs(".cursor", exist_ok=True)
+                with open(r".cursor\debug.log", "a", encoding="utf-8") as f:
+                    f.write(_json.dumps(payload, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
+        # endregion
+        _agent_log(
+            "H1",
+            "app/services/tiktok_ads_service.py:fetch_spend_for_ads",
+            "enter",
+            {"advertiser_tail": (advertiser_id or "")[-4:], "ad_ids_len": len(ad_ids)},
+        )
+
         ad_spend_map: Dict[str, float] = {}
-        
+
+        # TikTok report endpoint querystring มี limit; ต้อง batch ad_ids เพื่อไม่ให้ 400 จาก edge/CDN
+        batch_size = 100
+
         with cls._get_client() as client:
             url = f"{cls.BASE_URL}/report/integrated/get/"
-            
-            # TikTok API filtering format: list of filter objects
-            # See: https://business-api.tiktok.com/portal/docs?id=1751443956638722
-            params = {
-                "advertiser_id": advertiser_id,
-                "report_type": "BASIC",
-                "data_level": "AUCTION_AD",
-                "dimensions": json.dumps(["ad_id"]),
-                "metrics": json.dumps(["spend"]),
-                "query_lifetime": True,
-                "filtering": json.dumps([
-                    {
-                        "field_name": "ad_id",
-                        "filter_type": "IN",
-                        "filter_value": json.dumps(ad_ids)  # Must be JSON string of array
-                    }
-                ]),
-                "page_size": 100,
-                "page": 1,
-            }
-            
-            try:
-                resp = client.get(
-                    url,
-                    headers={"Access-Token": token},
-                    params=params,
-                )
-                
-                if resp.status_code != 200:
-                    print(f"[TikTokAdsService] fetch_spend_for_ads error {resp.status_code}")
-                    return {}
-                
-                data = resp.json()
-                if data.get("code") != 0:
-                    print(f"[TikTokAdsService] fetch_spend_for_ads API error: {data.get('message')}")
-                    return {}
-                
-                reports = data.get("data", {}).get("list", [])
-                
-                for report in reports:
-                    ad_id = report.get("dimensions", {}).get("ad_id")
-                    spend = float(report.get("metrics", {}).get("spend", 0))
-                    if ad_id:
-                        ad_spend_map[ad_id] = spend
-                
-                print(f"[TikTokAdsService] Fetched spend for {len(ad_spend_map)}/{len(ad_ids)} ads")
-                
-            except Exception as e:
-                print(f"[TikTokAdsService] fetch_spend_for_ads exception: {e}")
-        
+
+            for i in range(0, len(ad_ids), batch_size):
+                batch = ad_ids[i:i + batch_size]
+
+                params = {
+                    "advertiser_id": advertiser_id,
+                    "report_type": "BASIC",
+                    "data_level": "AUCTION_AD",
+                    "dimensions": json.dumps(["ad_id"]),
+                    "metrics": json.dumps(["spend"]),
+                    "query_lifetime": True,
+                    # ใช้ format เดียวกับ fetch_ads_report ที่ใช้งานได้จริง
+                    # report/integrated/get ต้องการ filtering เป็น list ของ filter objects
+                    # และ filter_value ต้องเป็น "string" (จาก log: filtering.0.filter_value: Not a valid string)
+                    # โดยปกติจะเป็น JSON-string ของ array เช่น '["123","456"]'
+                    "filtering": json.dumps([
+                        {
+                            "field_name": "ad_id",
+                            "filter_type": "IN",
+                            "filter_value": json.dumps(batch),
+                        }
+                    ]),
+                    "page_size": 1000,
+                    "page": 1,
+                }
+
+                try:
+                    resp = client.get(
+                        url,
+                        headers={"Access-Token": token},
+                        params=params,
+                    )
+                    _agent_log(
+                        "H1",
+                        "app/services/tiktok_ads_service.py:fetch_spend_for_ads",
+                        "http_response",
+                        {
+                            "status_code": int(getattr(resp, "status_code", -1)),
+                            "text_head": (getattr(resp, "text", "") or "")[:300],
+                            "filtering_len": len(str(params.get("filtering") or "")),
+                            "batch_len": len(batch),
+                        },
+                    )
+
+                    if resp.status_code != 200:
+                        print(f"[TikTokAdsService] fetch_spend_for_ads error {resp.status_code}")
+                        # ไม่ return ทันที เพื่อให้ batch อื่นๆ ยังทำงานต่อได้
+                        continue
+
+                    data = resp.json()
+                    if data.get("code") != 0:
+                        # region agent log
+                        try:
+                            _agent_log(
+                                "H1",
+                                "app/services/tiktok_ads_service.py:fetch_spend_for_ads",
+                                "api_error",
+                                {
+                                    "code": data.get("code"),
+                                    "message": data.get("message"),
+                                    "request_id": data.get("request_id"),
+                                    "batch_len": len(batch),
+                                },
+                            )
+                        except Exception:
+                            pass
+                        # endregion
+                        print(f"[TikTokAdsService] fetch_spend_for_ads API error: {data.get('message')}")
+                        continue
+
+                    reports = data.get("data", {}).get("list", []) or []
+                    for report in reports:
+                        ad_id = report.get("dimensions", {}).get("ad_id")
+                        spend = float(report.get("metrics", {}).get("spend", 0) or 0)
+                        if ad_id is not None:
+                            ad_spend_map[str(ad_id)] = spend
+
+                except Exception as e:
+                    print(f"[TikTokAdsService] fetch_spend_for_ads exception: {e}")
+                    continue
+
+        print(f"[TikTokAdsService] Fetched spend for {len(ad_spend_map)}/{len(ad_ids)} ads")
         return ad_spend_map
     
     @classmethod
@@ -1288,6 +1589,174 @@ class TikTokAdsService:
                     continue
         
         return all_reports
+
+    # ============================================
+    # Daily performance snapshot (no ad_id filtering)
+    # ============================================
+    @classmethod
+    def fetch_ad_daily_report(
+        cls,
+        advertiser_id: str,
+        start_date: str,
+        end_date: str,
+        metrics: List[str] = None,
+    ) -> List[Dict]:
+        """
+        Fetch ad-level daily report for a date range.
+
+        Notes:
+        - We intentionally DO NOT filter by ad_id because TikTok report API may not support it (runtime evidence).
+        - Use dimensions ["ad_id","stat_time_day"] and page through results.
+        """
+        token = cls._get_access_token()
+        if not token:
+            print("[TikTokAdsService] Missing access token, skip fetch_ad_daily_report")
+            return []
+
+        # Keep to widely-supported metrics for AUCTION_AD level.
+        # (runtime evidence: some accounts reject 'purchase_value')
+        if metrics is None:
+            metrics = ["spend", "impressions", "clicks", "reach", "conversion"]
+
+        all_rows: List[Dict] = []
+        page = 1
+
+        with cls._get_client() as client:
+            url = f"{cls.BASE_URL}/report/integrated/get/"
+            while True:
+                params = {
+                    "advertiser_id": advertiser_id,
+                    "report_type": "BASIC",
+                    "data_level": "AUCTION_AD",
+                    "dimensions": json.dumps(["ad_id", "stat_time_day"]),
+                    "metrics": json.dumps(metrics),
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "page_size": 1000,
+                    "page": page,
+                }
+                try:
+                    resp = client.get(url, headers={"Access-Token": token}, params=params)
+                    if resp.status_code != 200:
+                        print(f"[TikTokAdsService] fetch_ad_daily_report error {resp.status_code}: {resp.text}")
+                        break
+                    data = resp.json()
+                    if data.get("code") != 0:
+                        # Signal failure to caller (do NOT advance cursor)
+                        raise RuntimeError(f"{data.get('message')}")
+                    rows = data.get("data", {}).get("list", []) or []
+                    if not rows:
+                        break
+                    all_rows.extend(rows)
+                    page_info = data.get("data", {}).get("page_info", {}) or {}
+                    total_page = page_info.get("total_page", 1) or 1
+                    if page >= total_page:
+                        break
+                    page += 1
+                except Exception as e:
+                    print(f"[TikTokAdsService] fetch_ad_daily_report exception: {e}")
+                    break
+
+        return all_rows
+
+    @classmethod
+    def upsert_tiktok_ad_performance_daily(
+        cls,
+        db: Session,
+        ad_account: "AdAccount",
+        start_date: str,
+        end_date: str,
+    ) -> Dict:
+        """
+        Upsert daily performance rows into `ad_performance_daily`.
+        Cursor responsibility is handled by caller (script/task).
+        """
+        from datetime import datetime as _dt
+
+        from app.models import AdPerformanceDaily
+        from app.models.enums import Platform as PlatformEnum
+
+        advertiser_id = ad_account.external_account_id
+        rows = cls.fetch_ad_daily_report(advertiser_id, start_date=start_date, end_date=end_date)
+
+        # Convert report rows to upsert records
+        records = []
+        for r in rows:
+            dims = r.get("dimensions", {}) or {}
+            mets = r.get("metrics", {}) or {}
+            ext_ad_id = dims.get("ad_id")
+            day = dims.get("stat_time_day")
+            if not ext_ad_id or not day:
+                continue
+            try:
+                # TikTok often returns "YYYY-MM-DD 00:00:00" for stat_time_day
+                day_str = str(day).split(" ")[0]
+                day_date = _dt.strptime(day_str, "%Y-%m-%d").date()
+            except Exception:
+                continue
+
+            def _f(key):
+                try:
+                    return float(mets.get(key) or 0)
+                except Exception:
+                    return 0.0
+
+            def _i(key):
+                try:
+                    return int(float(mets.get(key) or 0))
+                except Exception:
+                    return 0
+
+            records.append(
+                {
+                    "platform": PlatformEnum.TIKTOK,
+                    "ad_account_id": ad_account.id,
+                    "external_ad_id": str(ext_ad_id),
+                    "date": day_date,
+                    "spend": _f("spend"),
+                    "impressions": _i("impressions"),
+                    "clicks": _i("clicks"),
+                    "reach": _i("reach"),
+                    "conversions": _i("conversion"),
+                    "purchases": _i("purchase"),
+                    "purchase_value": _f("purchase_value"),
+                    "metrics": dict(mets),
+                }
+            )
+
+        if not records:
+            return {"inserted_or_updated": 0, "rows_fetched": 0}
+
+        # Postgres upsert (batch to avoid max-parameter limits)
+        from sqlalchemy.dialects.postgresql import insert
+
+        total_affected = 0
+        batch_size = 300
+        now = _dt.utcnow()
+
+        for i in range(0, len(records), batch_size):
+            chunk = records[i:i + batch_size]
+            stmt = insert(AdPerformanceDaily).values(chunk)
+            update_cols = {
+                "spend": stmt.excluded.spend,
+                "impressions": stmt.excluded.impressions,
+                "clicks": stmt.excluded.clicks,
+                "reach": stmt.excluded.reach,
+                "conversions": stmt.excluded.conversions,
+                "purchases": stmt.excluded.purchases,
+                "purchase_value": stmt.excluded.purchase_value,
+                "metrics": stmt.excluded.metrics,
+                "updated_at": now,
+            }
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["platform", "ad_account_id", "external_ad_id", "date"],
+                set_=update_cols,
+            )
+            res = db.execute(stmt)
+            total_affected += int(getattr(res, "rowcount", 0) or 0)
+
+        db.commit()
+        return {"inserted_or_updated": total_affected, "rows_fetched": len(rows)}
 
     # ============================================
     # AdGroup Update Methods (POST to TikTok API)
@@ -1847,6 +2316,131 @@ class TikTokAdsService:
             
             return result
     
+    # ============================================
+    # Spark Ad Posts (for expire date tracking)
+    # ============================================
+    
+    @classmethod
+    def fetch_spark_ad_posts(cls, advertiser_id: str) -> List[Dict]:
+        """
+        ดึงรายการ Spark Ad Posts (authorized content) จาก TikTok
+        
+        ใช้ endpoint `/tt_video/list/` เพื่อดึงข้อมูล:
+        - item_id: TikTok post ID
+        - auth_end_time: วันหมดอายุ authorization สำหรับ Spark Ads
+        - ad_auth_status: สถานะ authorization
+        
+        สำหรับ Influencer content ที่ถูก authorize ให้ใช้เป็น Spark Ads
+        """
+        token = cls._get_access_token()
+        if not token:
+            print("[TikTokAdsService] Missing access token, skip fetch_spark_ad_posts")
+            return []
+        
+        all_posts: List[Dict] = []
+        page = 1
+        
+        with cls._get_client() as client:
+            while True:
+                url = f"{cls.BASE_URL.replace('/open_api/v1.3', '/open_api/v1.3')}/tt_video/list/"
+                
+                params = {
+                    "advertiser_id": advertiser_id,
+                    "page_size": 50,
+                    "page": page,
+                }
+                
+                try:
+                    resp = client.get(
+                        url,
+                        headers={"Access-Token": token},
+                        params=params,
+                    )
+                    
+                    if resp.status_code != 200:
+                        print(f"[TikTokAdsService] fetch_spark_ad_posts error {resp.status_code}: {resp.text}")
+                        break
+                    
+                    data = resp.json()
+                    
+                    if data.get("code") != 0:
+                        print(f"[TikTokAdsService] fetch_spark_ad_posts API error: {data.get('message')}")
+                        break
+                    
+                    items = data.get("data", {}).get("list", [])
+                    
+                    if not items:
+                        break
+                    
+                    for item in items:
+                        # Extract relevant fields
+                        item_info = item.get("item_info", {})
+                        auth_info = item.get("auth_info", {})
+                        user_info = item.get("user_info", {})
+                        
+                        post_data = {
+                            "item_id": item_info.get("item_id"),
+                            "identity_id": user_info.get("identity_id"),
+                            "auth_code": item_info.get("auth_code"),
+                            "auth_start_time": auth_info.get("auth_start_time"),
+                            "auth_end_time": auth_info.get("auth_end_time"),
+                            "ad_auth_status": auth_info.get("ad_auth_status"),
+                        }
+                        all_posts.append(post_data)
+                    
+                    # Check if more pages
+                    if len(items) < 50:
+                        break
+                    
+                    page += 1
+                    
+                except Exception as e:
+                    print(f"[TikTokAdsService] fetch_spark_ad_posts exception: {e}")
+                    break
+        
+        print(f"[TikTokAdsService] Fetched {len(all_posts)} spark ad posts from {advertiser_id}")
+        return all_posts
+    
+    @classmethod
+    def fetch_all_spark_ad_posts(cls) -> Dict[str, Dict]:
+        """
+        ดึง Spark Ad Posts จากทุก ad account
+        
+        Returns:
+            Dict[item_id, {auth_end_time, ad_auth_status, ...}]
+        """
+        from app.core.database import SessionLocal
+        
+        db = SessionLocal()
+        all_posts_map: Dict[str, Dict] = {}
+        
+        try:
+            accounts = (
+                db.query(AdAccount)
+                .filter(
+                    AdAccount.platform == PlatformEnum.TIKTOK,
+                    AdAccount.status == AdAccountStatus.ACTIVE,
+                )
+                .all()
+            )
+            
+            for account in accounts:
+                print(f"[TikTokAdsService] Fetching spark ad posts from {account.name}...")
+                posts = cls.fetch_spark_ad_posts(account.external_account_id)
+                
+                for post in posts:
+                    item_id = post.get("item_id")
+                    if item_id:
+                        # Store/update with latest auth_end_time
+                        all_posts_map[item_id] = post
+            
+            print(f"[TikTokAdsService] Total spark ad posts: {len(all_posts_map)}")
+            
+        finally:
+            db.close()
+        
+        return all_posts_map
+
     @classmethod
     def _create_spark_ad(
         cls,

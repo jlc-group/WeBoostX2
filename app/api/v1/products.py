@@ -121,13 +121,13 @@ class AutoCreateAbxAdgroupsRequest(BaseModel):
     """
     Payload สำหรับ Auto Create ABX Adgroups สำหรับ Product Group
     
-    ใช้สร้างชุด ABX Adgroups ตาม targeting x content_style ที่เลือก
+    ใช้สร้างชุด ABX Adgroups ตาม targeting x content_type ที่เลือก
     """
     advertiser_id: str
     campaign_id: str
     objective_code: str = "VV"  # VV, RCH, TRF, CVN
     targeting_ids: List[int]  # List of TargetingTemplate IDs
-    content_styles: List[str]  # e.g. ["SALE", "ECOM", "REVIEW"]
+    content_types: List[str]  # e.g. ["SALE", "ECOM", "REVIEW"]
     adgroups_per_style: int = 5  # จำนวน adgroup ต่อ targeting x style
     budget_per_adgroup: float = 500.0
 
@@ -515,7 +515,7 @@ def get_products_in_group(group_id: int, db: Session = Depends(get_db)):
 @groups_router.post("/{group_id}/abx/preview")
 def preview_abx_adgroups(
     group_id: int,
-    request: AutoCreateAbxAdgroupsRequest,
+    request_body: AutoCreateAbxAdgroupsRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -523,6 +523,15 @@ def preview_abx_adgroups(
     
     ใช้ดูรายการ adgroup names ก่อนกดสร้างจริง
     """
+    # Validate required fields
+    if not request_body.advertiser_id:
+        raise HTTPException(status_code=400, detail="advertiser_id is required")
+    if not request_body.campaign_id:
+        raise HTTPException(status_code=400, detail="campaign_id is required")
+    if not request_body.targeting_ids or len(request_body.targeting_ids) == 0:
+        raise HTTPException(status_code=400, detail="At least one targeting_id is required")
+    if not request_body.content_types or len(request_body.content_types) == 0:
+        raise HTTPException(status_code=400, detail="At least one content_type is required")
     # Get product group
     group = db.query(ProductGroup).filter(
         ProductGroup.id == group_id,
@@ -537,7 +546,7 @@ def preview_abx_adgroups(
     
     # Get targeting templates
     targeting_templates = db.query(TargetingTemplate).filter(
-        TargetingTemplate.id.in_(request.targeting_ids)
+        TargetingTemplate.id.in_(request_body.targeting_ids)
     ).all()
     
     if not targeting_templates:
@@ -545,11 +554,11 @@ def preview_abx_adgroups(
     
     # Generate preview names
     preview_adgroups = []
-    obj_code = request.objective_code.upper()
+    obj_code = request_body.objective_code.upper()
     
     for targeting in targeting_templates:
-        for style in request.content_styles:
-            for i in range(1, request.adgroups_per_style + 1):
+        for style in request_body.content_types:
+            for i in range(1, request_body.adgroups_per_style + 1):
                 adgroup_name = NamingService.generate_adgroup_name(
                     product_codes=group.product_codes,
                     structure_code="ABX",
@@ -587,7 +596,7 @@ def auto_create_abx_adgroups(
     """
     Auto Create ABX Adgroups สำหรับ Product Group
     
-    สร้างชุด ABX Adgroups บน TikTok ตาม targeting x content_style ที่เลือก
+    สร้างชุด ABX Adgroups บน TikTok ตาม targeting x content_type ที่เลือก
     
     Flow:
     1. ตรวจสอบ Product Group
@@ -645,7 +654,7 @@ def auto_create_abx_adgroups(
         if targeting.settings:
             targeting_settings = targeting.settings
         
-        for style in request.content_styles:
+        for style in request.content_types:
             for i in range(1, request.adgroups_per_style + 1):
                 adgroup_name = NamingService.generate_adgroup_name(
                     product_codes=group.product_codes,

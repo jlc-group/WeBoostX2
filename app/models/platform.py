@@ -33,6 +33,7 @@ class AdAccount(BaseModel):
     # Account details
     name = Column(String(255), nullable=False)
     status = Column(Enum(AdAccountStatus), default=AdAccountStatus.ACTIVE)
+    is_active = Column(Boolean, default=True)  # Simple active/inactive flag for ad creation
     timezone = Column(String(50), nullable=True)
     currency = Column(String(10), default="THB")
     

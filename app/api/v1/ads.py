@@ -35,7 +35,7 @@ def _get_active_advertiser_or_404(db: Session, advertiser_id: str) -> AdAccount:
         .filter(
             AdAccount.platform == Platform.TIKTOK,
             AdAccount.external_account_id == advertiser_id,
-            AdAccount.status == AdAccountStatus.ACTIVE,
+            AdAccount.is_active == True,
         )
         .first()
     )
@@ -94,6 +94,8 @@ class CreateACEAdRequest(BaseModel):
     ad_name: str
     optimization_goal: Optional[str] = None  # override default VIDEO_VIEW
     budget: Optional[float] = None  # daily budget for adgroup
+    # Manual auth code input (fallback for influencer content without pre-registered auth)
+    auth_code: Optional[str] = None
 
 
 class CreateABXAdRequest(BaseModel):
@@ -101,6 +103,8 @@ class CreateABXAdRequest(BaseModel):
     adgroup_id: str  # existing adgroup
     content_id: int
     ad_name: str
+    # Manual auth code input (fallback for influencer content without pre-registered auth)
+    auth_code: Optional[str] = None
 
 
 class CreateAdResponse(BaseModel):
@@ -140,7 +144,7 @@ def list_advertisers(
         db.query(AdAccount)
         .filter(
             AdAccount.platform == platform,
-            AdAccount.status == AdAccountStatus.ACTIVE,
+            AdAccount.is_active == True,
         )
         .order_by(AdAccount.name)
         .all()
@@ -152,7 +156,7 @@ def list_advertisers(
                 id=acc.id,
                 external_account_id=acc.external_account_id,
                 name=acc.name,
-                status=acc.status.value if acc.status else "active"
+                status="active" if acc.is_active else "inactive"
             )
             for acc in accounts
         ],
@@ -380,7 +384,16 @@ def create_ace_ad(
     Create ACE Ad (new adgroup + ad for a single content)
     
     ACE = 1 AdGroup per 1 Content
+    
+    For Influencer content:
+    - ถ้ามี SparkAdAuth bound อยู่แล้ว → ใช้ identity_id จาก SparkAdAuth
+    - ถ้าไม่มี และส่ง auth_code มา → authorize ก่อนแล้วค่อย create
+    - ถ้าไม่มีทั้งสอง → return error พร้อม needs_auth_code=true
     """
+    from app.models import SparkAdAuth, SparkAuthStatus
+    from app.models.enums import ContentSource
+    from app.services.spark_auth_service import SparkAuthService
+    
     advertiser = _get_active_advertiser_or_404(db, payload.advertiser_id)
     # Validate content exists
     content = db.query(Content).filter(Content.id == payload.content_id).first()
@@ -422,13 +435,81 @@ def create_ace_ad(
             detail="Content is linked to a different advertiser account"
         )
     
+    # ============================================
     # Resolve identity for Spark Ads
-    identity_id = TikTokAdsService.get_identity_id(payload.advertiser_id, content.platform_post_id)
-    if not identity_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Identity ID not found for this content/advertiser"
-        )
+    # ============================================
+    identity_id = None
+    identity_type = "TT_USER"
+    spark_auth = None
+    
+    # Check if content is INFLUENCER
+    is_influencer = content.content_source == ContentSource.INFLUENCER
+    
+    if is_influencer:
+        # For Influencer content: check SparkAdAuth first
+        spark_auth = db.query(SparkAdAuth).filter(
+            SparkAdAuth.content_id == content.id,
+            SparkAdAuth.status.in_([SparkAuthStatus.AUTHORIZED, SparkAuthStatus.BOUND]),
+            SparkAdAuth.deleted_at.is_(None),
+        ).first()
+        
+        if spark_auth and spark_auth.is_usable:
+            # Use identity from SparkAdAuth
+            identity_id = spark_auth.identity_id
+            identity_type = "AUTH_CODE"
+        elif payload.auth_code:
+            # Manual auth code provided - authorize it first
+            auth_result = SparkAuthService.authorize_single(
+                auth_code=payload.auth_code,
+                ad_account_id=advertiser.id,
+                influencer_name=content.creator_name,
+                imported_by=current_user.id,
+            )
+            
+            if auth_result.get("authorized", 0) > 0:
+                # Get the newly created SparkAdAuth
+                details = auth_result.get("details", [])
+                if details and details[0].get("status") in ["authorized", "bound"]:
+                    # Refetch to get the identity_id
+                    spark_auth = db.query(SparkAdAuth).filter(
+                        SparkAdAuth.auth_code == payload.auth_code,
+                        SparkAdAuth.deleted_at.is_(None),
+                    ).first()
+                    
+                    if spark_auth:
+                        identity_id = spark_auth.identity_id
+                        identity_type = "AUTH_CODE"
+                        
+                        # Bind to content if not already bound
+                        if not spark_auth.content_id:
+                            spark_auth.content_id = content.id
+                            spark_auth.status = SparkAuthStatus.BOUND
+                            db.commit()
+            
+            if not identity_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to authorize auth code: {auth_result.get('details', [{}])[0].get('error', 'Unknown error')}"
+                )
+        else:
+            # No SparkAdAuth and no manual auth_code
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Influencer content requires auth code. Please provide auth_code or pre-register it.",
+                    "needs_auth_code": True,
+                    "content_id": content.id,
+                }
+            )
+    else:
+        # For Official/Staff content: use standard identity lookup
+        identity_id = TikTokAdsService.get_identity_id(payload.advertiser_id, content.platform_post_id)
+        
+        if not identity_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Identity ID not found for this content/advertiser"
+            )
     
     # Create adgroup + ad on TikTok
     result = TikTokAdsService.create_ace_adgroup_and_ad(
@@ -441,10 +522,22 @@ def create_ace_ad(
         budget=payload.budget or 200.0,
         optimization_goal=payload.optimization_goal or "VIDEO_VIEW",
         identity_id=identity_id,
-        identity_type="TT_USER",
+        identity_type=identity_type,
     )
     
     if result.get("success"):
+        # Mark SparkAdAuth as used
+        if spark_auth:
+            ad_id_str = result.get("ad_id")
+            if ad_id_str:
+                # Find or create internal Ad record
+                ad = db.query(Ad).filter(Ad.external_ad_id == ad_id_str).first()
+                spark_auth.status = SparkAuthStatus.USED
+                spark_auth.used_at = datetime.utcnow()
+                if ad:
+                    spark_auth.used_in_ad_id = ad.id
+                db.commit()
+        
         # Sync the new ad back to our database
         ad_account = db.query(AdAccount).filter(
             AdAccount.external_account_id == payload.advertiser_id
@@ -468,7 +561,16 @@ def create_abx_ad(
     Create ABX Ad (add content to existing adgroup)
     
     ABX = Multiple content in 1 AdGroup
+    
+    For Influencer content:
+    - ถ้ามี SparkAdAuth bound อยู่แล้ว → ใช้ identity_id จาก SparkAdAuth
+    - ถ้าไม่มี และส่ง auth_code มา → authorize ก่อนแล้วค่อย create
+    - ถ้าไม่มีทั้งสอง → return error พร้อม needs_auth_code=true
     """
+    from app.models import SparkAdAuth, SparkAuthStatus
+    from app.models.enums import ContentSource
+    from app.services.spark_auth_service import SparkAuthService
+    
     advertiser = _get_active_advertiser_or_404(db, payload.advertiser_id)
     # Validate content exists
     content = db.query(Content).filter(Content.id == payload.content_id).first()
@@ -501,13 +603,78 @@ def create_abx_ad(
             detail="Content is linked to a different advertiser account"
         )
     
+    # ============================================
     # Resolve identity for Spark Ads
-    identity_id = TikTokAdsService.get_identity_id(payload.advertiser_id, content.platform_post_id)
-    if not identity_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Identity ID not found for this content/advertiser"
-        )
+    # ============================================
+    identity_id = None
+    identity_type = "TT_USER"
+    spark_auth = None
+    
+    # Check if content is INFLUENCER
+    is_influencer = content.content_source == ContentSource.INFLUENCER
+    
+    if is_influencer:
+        # For Influencer content: check SparkAdAuth first
+        spark_auth = db.query(SparkAdAuth).filter(
+            SparkAdAuth.content_id == content.id,
+            SparkAdAuth.status.in_([SparkAuthStatus.AUTHORIZED, SparkAuthStatus.BOUND]),
+            SparkAdAuth.deleted_at.is_(None),
+        ).first()
+        
+        if spark_auth and spark_auth.is_usable:
+            # Use identity from SparkAdAuth
+            identity_id = spark_auth.identity_id
+            identity_type = "AUTH_CODE"
+        elif payload.auth_code:
+            # Manual auth code provided - authorize it first
+            auth_result = SparkAuthService.authorize_single(
+                auth_code=payload.auth_code,
+                ad_account_id=advertiser.id,
+                influencer_name=content.creator_name,
+                imported_by=current_user.id,
+            )
+            
+            if auth_result.get("authorized", 0) > 0:
+                # Get the newly created SparkAdAuth
+                spark_auth = db.query(SparkAdAuth).filter(
+                    SparkAdAuth.auth_code == payload.auth_code,
+                    SparkAdAuth.deleted_at.is_(None),
+                ).first()
+                
+                if spark_auth:
+                    identity_id = spark_auth.identity_id
+                    identity_type = "AUTH_CODE"
+                    
+                    # Bind to content if not already bound
+                    if not spark_auth.content_id:
+                        spark_auth.content_id = content.id
+                        spark_auth.status = SparkAuthStatus.BOUND
+                        db.commit()
+            
+            if not identity_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to authorize auth code: {auth_result.get('details', [{}])[0].get('error', 'Unknown error')}"
+                )
+        else:
+            # No SparkAdAuth and no manual auth_code
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Influencer content requires auth code. Please provide auth_code or pre-register it.",
+                    "needs_auth_code": True,
+                    "content_id": content.id,
+                }
+            )
+    else:
+        # For Official/Staff content: use standard identity lookup
+        identity_id = TikTokAdsService.get_identity_id(payload.advertiser_id, content.platform_post_id)
+        
+        if not identity_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Identity ID not found for this content/advertiser"
+            )
     
     # Create ad in existing adgroup on TikTok
     result = TikTokAdsService.create_abx_ad(
@@ -516,10 +683,21 @@ def create_abx_ad(
         tiktok_item_id=content.platform_post_id,
         ad_name=payload.ad_name,
         identity_id=identity_id,
-        identity_type="TT_USER",
+        identity_type=identity_type,
     )
     
     if result.get("success"):
+        # Mark SparkAdAuth as used
+        if spark_auth:
+            ad_id_str = result.get("ad_id")
+            if ad_id_str:
+                ad = db.query(Ad).filter(Ad.external_ad_id == ad_id_str).first()
+                spark_auth.status = SparkAuthStatus.USED
+                spark_auth.used_at = datetime.utcnow()
+                if ad:
+                    spark_auth.used_in_ad_id = ad.id
+                db.commit()
+        
         # Sync the new ad back to our database
         ad_account = db.query(AdAccount).filter(
             AdAccount.external_account_id == payload.advertiser_id

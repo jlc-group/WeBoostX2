@@ -10,6 +10,7 @@ from typing import Optional
 from app.core.deps import get_db, get_optional_user
 from app.models.user import User
 from app.models import Content, Campaign, AdGroup, Ad
+from app.models.enums import AdAccountStatus
 
 router = APIRouter(tags=["Pages"])
 
@@ -170,7 +171,42 @@ async def contents_tiktok_page(request: Request, db: Session = Depends(get_db)):
         "stats": {
             "total": total_contents,
             "avg_pfm": float(avg_pfm)
-        }
+        },
+        "special_mode": None
+    })
+
+
+@router.get("/contents/tiktok/best-each-product", response_class=HTMLResponse)
+async def contents_tiktok_best_each_product_page(request: Request, db: Session = Depends(get_db)):
+    """TikTok Best Content Each Product page"""
+    from app.models.enums import Platform
+    from sqlalchemy import func
+    
+    total_contents = db.query(Content).filter(
+        Content.platform == Platform.TIKTOK,
+        Content.deleted_at.is_(None)
+    ).count()
+    
+    avg_pfm = db.query(func.avg(Content.pfm_score)).filter(
+        Content.platform == Platform.TIKTOK,
+        Content.pfm_score.isnot(None),
+        Content.deleted_at.is_(None)
+    ).scalar() or 0
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    return templates.TemplateResponse("contents/tiktok.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "contents_tiktok",
+        "stats": {
+            "total": total_contents,
+            "avg_pfm": float(avg_pfm)
+        },
+        "special_mode": "best_each_product"
     })
 
 
@@ -251,7 +287,7 @@ async def campaigns_page(
     # Get advertisers for filter
     advertisers = db.query(AdAccount).filter(
         AdAccount.platform == Platform.TIKTOK,
-        AdAccount.status == "active"
+        AdAccount.is_active == True
     ).all()
     
     # Calculate stats
@@ -696,7 +732,7 @@ async def ad_create_page(
     # Get advertisers
     advertisers = db.query(AdAccount).filter(
         AdAccount.platform == Platform.TIKTOK,
-        AdAccount.status == "active"
+        AdAccount.is_active == True
     ).all()
     
     # Get targeting template if provided
@@ -761,7 +797,7 @@ async def ace_create_page(
     # Get advertisers
     advertisers = db.query(AdAccount).filter(
         AdAccount.platform == Platform.TIKTOK,
-        AdAccount.status == "active"
+        AdAccount.is_active == True
     ).all()
     
     # Get targeting template if provided
@@ -814,7 +850,7 @@ async def abx_create_page(
     # Get advertisers
     advertisers = db.query(AdAccount).filter(
         AdAccount.platform == Platform.TIKTOK,
-        AdAccount.status == "active"
+        AdAccount.is_active == True
     ).all()
     
     # Get targeting template if provided
@@ -838,4 +874,40 @@ async def abx_create_page(
         "targeting": targeting,
         "targeting_id": targeting_id,
         "products": ",".join(content.product_codes or []),
+    })
+
+
+# ============================================
+# Spark Auth Pages (Influencer Auth Codes)
+# ============================================
+
+@router.get("/spark-auth", response_class=HTMLResponse)
+async def spark_auth_list_page(request: Request, db: Session = Depends(get_db)):
+    """Spark Auth Codes list page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    return templates.TemplateResponse("spark_auth/list.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "spark_auth",
+    })
+
+
+@router.get("/spark-auth/import", response_class=HTMLResponse)
+async def spark_auth_import_page(request: Request, db: Session = Depends(get_db)):
+    """Spark Auth Codes import page"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    return templates.TemplateResponse("spark_auth/import.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "spark_auth_import",
     })

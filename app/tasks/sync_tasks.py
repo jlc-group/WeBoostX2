@@ -5,10 +5,10 @@ from datetime import datetime, timedelta
 from typing import List
 
 from app.core.database import SessionLocal
-from app.models import TaskLog, TaskStatus, Platform, Content, AppSetting
+from app.models import AppSetting, Content, Platform, TaskLog, TaskStatus
 from app.models.enums import Platform as PlatformEnum
-from app.services.tiktok_service import TikTokService
 from app.services.tiktok_ads_service import TikTokAdsService
+from app.services.tiktok_service import TikTokService
 
 
 def log_task_start(task_name: str, task_type: str = "sync") -> TaskLog:
@@ -287,12 +287,20 @@ def sync_all_ads():
         raise
 
 
-def sync_tiktok_ads() -> dict:
-    """Sync TikTok campaigns, adgroups, and ads"""
+def sync_tiktok_ads(days: int = 7) -> dict:
+    """
+    Sync TikTok campaigns, adgroups, and ads
+    
+    Args:
+        days: จำนวนวันที่จะดึง ads (default=7 วัน)
+              - ใช้ 7 สำหรับ daily sync (แนะนำ)
+              - ใช้ 31 สำหรับ monthly sync
+              - ใช้ -1 สำหรับ full sync (ช้ามาก ไม่แนะนำ)
+    """
     task = log_task_start("sync_tiktok_ads", "sync")
 
     try:
-        result = TikTokAdsService.sync_all_tiktok_ads(days=31)
+        result = TikTokAdsService.sync_all_tiktok_ads(days=days)
         ads = result.get("ads", 0)
         mapped = result.get("mapped_contents", 0)
         ad_accounts = result.get("ad_accounts", 0)
@@ -300,10 +308,12 @@ def sync_tiktok_ads() -> dict:
         item_ids_total = result.get("item_ids_total", 0)
         detail_failed = result.get("item_detail_failed", 0)
         unresolved = result.get("item_ids_unresolved", 0)
+        total_spend = result.get("total_spend_synced", 0)
 
         msg = (
             f"Synced TikTok ads for {ad_accounts} ad_accounts, "
             f"ads={ads}, mapped_contents={mapped}, "
+            f"total_spend=฿{total_spend:,.2f}, "
             f"ads_without_item_id={ads_without_item}, "
             f"item_ids_total={item_ids_total}, "
             f"item_detail_failed={detail_failed}, "
@@ -329,6 +339,7 @@ def sync_tiktok_ads() -> dict:
             "item_ids_total": item_ids_total,
             "item_detail_failed": detail_failed,
             "item_ids_unresolved": unresolved,
+            "total_spend_synced": total_spend,
         }
 
     except Exception as e:
@@ -360,7 +371,8 @@ def sync_campaigns_adgroups() -> dict:
     2. ดึง adgroups ทุก ad account → upsert เข้า ad_groups table
     """
     from datetime import timezone
-    from app.models import AdAccount, Campaign, AdGroup
+
+    from app.models import AdAccount, AdGroup, Campaign
     from app.models.enums import AdAccountStatus, AdStatus
     
     task = log_task_start("sync_campaigns_adgroups", "sync")
@@ -536,9 +548,10 @@ def sync_ads_spend_data():
     
     db = SessionLocal()
     try:
+        import json
+
         from app.models import AdAccount
         from app.services.tiktok_ads_service import TikTokAdsService
-        import json
         
         # Get all active TikTok ad accounts
         accounts = db.query(AdAccount).filter(
@@ -742,6 +755,299 @@ def update_all_ads_total_cost():
         log_task_complete(task.id, True, msg, updated, updated, 0)
         
         return {"processed": updated, "success": updated, "failed": 0}
+        
+    except Exception as e:
+        db.rollback()
+        log_task_complete(task.id, False, str(e))
+        raise
+    finally:
+        db.close()
+
+
+def sync_tiktok_ad_performance_daily(chunk_days: int = 2, default_start_days: int = 30, max_accounts: int = 0) -> dict:
+    """
+    Incremental/backfill TikTok ad daily performance into `ad_performance_daily`.
+
+    - Uses cursor per AdAccount: ad_accounts.config["tiktok_daily_cursor"] (YYYY-MM-DD)
+    - Does NOT refetch processed days (cursor + 1 day)
+    - Advances cursor only when API call succeeds (even if rows_fetched=0)
+    - Does not fetch "today" (only up to yesterday) to avoid partial day
+    """
+    from datetime import date, timedelta
+    from app.models import AdAccount
+    from app.models.enums import AdAccountStatus, Platform as PlatformEnum
+    from app.services.tiktok_ads_service import TikTokAdsService
+
+    chunk_days = max(1, min(31, int(chunk_days or 2)))
+    default_start_days = max(1, min(3650, int(default_start_days or 30)))
+
+    db = SessionLocal()
+    try:
+        accounts = (
+            db.query(AdAccount)
+            .filter(
+                AdAccount.platform == PlatformEnum.TIKTOK,
+                AdAccount.status == AdAccountStatus.ACTIVE,
+            )
+            .order_by(AdAccount.id.asc())
+            .all()
+        )
+        if max_accounts and max_accounts > 0:
+            accounts = accounts[: max_accounts]
+
+        today = date.today()
+        max_end = today - timedelta(days=1)
+
+        processed_accounts = 0
+        total_rows_fetched = 0
+        total_upserted = 0
+        advanced = 0
+        errors = []
+
+        for acc in accounts:
+            cfg = acc.config if isinstance(acc.config, dict) else {}
+            cursor = str(cfg.get("tiktok_daily_cursor") or "")
+
+            try:
+                if cursor:
+                    start = date.fromisoformat(cursor) + timedelta(days=1)
+                else:
+                    start = acc.start_date or (today - timedelta(days=default_start_days))
+
+                if start > max_end:
+                    continue
+
+                end = min(start + timedelta(days=chunk_days - 1), max_end)
+                start_str = start.isoformat()
+                end_str = end.isoformat()
+
+                result = TikTokAdsService.upsert_tiktok_ad_performance_daily(
+                    db=db,
+                    ad_account=acc,
+                    start_date=start_str,
+                    end_date=end_str,
+                )
+                processed_accounts += 1
+                total_rows_fetched += int(result.get("rows_fetched") or 0)
+                total_upserted += int(result.get("inserted_or_updated") or 0)
+
+                # advance cursor only on success
+                new_cfg = dict(cfg)
+                new_cfg["tiktok_daily_cursor"] = end_str
+                acc.config = new_cfg
+                db.add(acc)
+                db.commit()
+                advanced += 1
+            except Exception as e:
+                db.rollback()
+                errors.append({"ad_account_id": acc.id, "name": acc.name, "error": str(e)})
+                continue
+
+        return {
+            "accounts_total": len(accounts),
+            "accounts_processed": processed_accounts,
+            "cursor_advanced": advanced,
+            "rows_fetched": total_rows_fetched,
+            "rows_upserted": total_upserted,
+            "errors": errors,
+        }
+    finally:
+        db.close()
+
+
+def aggregate_content_cost_from_ad_performance_daily(platform: str = "TIKTOK", lookback_days: int = 7) -> dict:
+    """
+    Aggregate spend from `ad_performance_daily` to `contents.ads_total_cost`.
+
+    Strategy (แบบ A):
+    - หา "contents ที่ได้รับผลกระทบ" จาก daily rows ในช่วง lookback_days ล่าสุด
+    - สำหรับ content ที่ affected เท่านั้น -> คำนวณ lifetime spend (sum ทุกวัน) แล้วอัปเดท ads_total_cost
+    - รองรับหลาย platform ผ่านคอลัมน์ platform ใน ad_performance_daily/ads
+    """
+    from datetime import date, timedelta
+    from sqlalchemy import text
+
+    task = log_task_start("aggregate_content_cost_from_daily", "calc")
+    db = SessionLocal()
+    try:
+        end_d = date.today() - timedelta(days=1)  # exclude today
+        start_d = end_d - timedelta(days=max(1, int(lookback_days or 7)) - 1)
+
+        platform_key = (platform or "TIKTOK").upper()
+        sql = text(
+            """
+            WITH affected AS (
+                SELECT DISTINCT a.content_id AS content_id
+                FROM ad_performance_daily d
+                JOIN ads a
+                  ON a.platform::text = d.platform
+                 AND a.ad_account_id = d.ad_account_id
+                 AND a.external_ad_id = d.external_ad_id
+                WHERE d.platform = :platform
+                  AND d.date BETWEEN :start_date AND :end_date
+                  AND a.content_id IS NOT NULL
+                  AND a.deleted_at IS NULL
+            ),
+            agg AS (
+                SELECT a.content_id AS content_id,
+                       COALESCE(SUM(d.spend), 0) AS total_spend
+                FROM ad_performance_daily d
+                JOIN ads a
+                  ON a.platform::text = d.platform
+                 AND a.ad_account_id = d.ad_account_id
+                 AND a.external_ad_id = d.external_ad_id
+                WHERE d.platform = :platform
+                  AND a.content_id IN (SELECT content_id FROM affected)
+                  AND a.deleted_at IS NULL
+                GROUP BY a.content_id
+            )
+            UPDATE contents c
+            SET ads_total_cost = agg.total_spend
+            FROM agg
+            WHERE c.id = agg.content_id
+              AND c.deleted_at IS NULL
+            """
+        )
+
+        res = db.execute(
+            sql,
+            {
+                "platform": platform_key,
+                "start_date": start_d,
+                "end_date": end_d,
+            },
+        )
+        db.commit()
+
+        updated = int(getattr(res, "rowcount", 0) or 0)
+        msg = f"Aggregated ads_total_cost from ad_performance_daily for {updated} contents ({platform_key}), lookback={lookback_days}d"
+        log_task_complete(task.id, True, msg, updated, updated, 0)
+        return {
+            "platform": platform_key,
+            "lookback_days": lookback_days,
+            "updated_contents": updated,
+            "range": {"start": start_d.isoformat(), "end": end_d.isoformat()},
+        }
+    except Exception as e:
+        db.rollback()
+        log_task_complete(task.id, False, str(e))
+        raise
+    finally:
+        db.close()
+
+
+def update_content_expire_dates():
+    """
+    อัปเดต expire_date สำหรับทุก Content
+    
+    Logic (based on old system hourly_tasks.py):
+    1. INFLUENCER content: ดึง auth_end_time จาก TikTok Spark Ads API (tt_video/list)
+       - วันหมดอายุ = วันที่ authorization สำหรับ Spark Ads หมดอายุ
+    2. PAGE/STAFF/UGC content: ใช้ platform_created_at + 2 years
+       - Official content ใช้ได้ตลอด (2 ปี)
+    """
+    task = log_task_start("update_content_expire_dates", "calc")
+    
+    db = SessionLocal()
+    try:
+        from datetime import date
+
+        from dateutil.relativedelta import relativedelta
+
+        from app.models.enums import ContentSource
+        from app.services.tiktok_ads_service import TikTokAdsService
+        
+        # ============================================
+        # Step 1: ดึง Spark Ad Posts จากทุก ad account
+        # (สำหรับ INFLUENCER content)
+        # ============================================
+        print("  Fetching spark ad posts for expire dates...")
+        spark_posts_map = TikTokAdsService.fetch_all_spark_ad_posts()
+        
+        updated_influencer = 0
+        updated_official = 0
+        
+        # ============================================
+        # Step 2: อัปเดต INFLUENCER content จาก auth_end_time
+        # ============================================
+        if spark_posts_map:
+            # Get all TikTok contents that might be influencer content
+            influencer_contents = (
+                db.query(Content)
+                .filter(
+                    Content.platform == PlatformEnum.TIKTOK,
+                    Content.deleted_at.is_(None),
+                    Content.content_source == ContentSource.INFLUENCER,
+                )
+                .all()
+            )
+            
+            for content in influencer_contents:
+                item_id = content.platform_post_id
+                if item_id and item_id in spark_posts_map:
+                    spark_post = spark_posts_map[item_id]
+                    auth_end_time = spark_post.get("auth_end_time")
+                    
+                    if auth_end_time:
+                        try:
+                            # auth_end_time อาจเป็น "2025-12-31 23:59:59" หรือ timestamp
+                            if isinstance(auth_end_time, str):
+                                # Parse datetime string to date
+                                from datetime import datetime as dt
+                                expire_dt = dt.strptime(auth_end_time.split(" ")[0], "%Y-%m-%d")
+                                content.expire_date = expire_dt.date()
+                            elif isinstance(auth_end_time, (int, float)):
+                                # Unix timestamp
+                                from datetime import datetime as dt
+                                expire_dt = dt.fromtimestamp(auth_end_time)
+                                content.expire_date = expire_dt.date()
+                            
+                            updated_influencer += 1
+                        except Exception as e:
+                            print(f"    Error parsing auth_end_time for content {content.id}: {e}")
+            
+            db.commit()
+            print(f"  Updated expire_date for {updated_influencer} influencer contents")
+        
+        # ============================================
+        # Step 3: อัปเดต content ที่ไม่ใช่ INFLUENCER (PAGE/STAFF/UGC)
+        # ใช้ platform_created_at + 2 years
+        # ============================================
+        # Get contents that need default expire date
+        non_influencer_contents = (
+            db.query(Content)
+            .filter(
+                Content.deleted_at.is_(None),
+                Content.expire_date.is_(None),  # Only update if not set
+                Content.platform_created_at.isnot(None),
+                # Not influencer OR no content_source set
+                db.or_(
+                    Content.content_source != ContentSource.INFLUENCER,
+                    Content.content_source.is_(None),
+                )
+            )
+            .all()
+        )
+        
+        for content in non_influencer_contents:
+            if content.platform_created_at:
+                # Add 2 years to platform_created_at
+                expire_dt = content.platform_created_at + relativedelta(years=2)
+                content.expire_date = expire_dt.date() if hasattr(expire_dt, 'date') else expire_dt
+                updated_official += 1
+        
+        db.commit()
+        print(f"  Updated expire_date for {updated_official} official/other contents (created_at + 2 years)")
+        
+        total_updated = updated_influencer + updated_official
+        msg = f"Updated expire_date: {updated_influencer} influencer, {updated_official} official/other"
+        log_task_complete(task.id, True, msg, total_updated, total_updated, 0)
+        
+        return {
+            "processed": total_updated,
+            "influencer_updated": updated_influencer,
+            "official_updated": updated_official,
+        }
         
     except Exception as e:
         db.rollback()

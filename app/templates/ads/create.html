@@ -1292,9 +1292,9 @@ function adCreateApp() {
                 const data = await resp.json();
                 this.campaigns = data.data?.list || [];
                 
-                const productParts = this.products ? this.products.split(',').map(p => '[' + p.trim() + ']').join('') : '';
+                    const productParts = this.products ? this.products.split(',').map(p => '[' + p.trim() + ']').join('') : '';
                 const useLegacy = this.useLegacyNaming && this.objectiveCode === 'VV';
-                
+                    
                 // Find matching campaign for ACE
                 if (this.adType === 'ACE' && this.objectiveCode) {
                     // Try V2 naming first: [Products]_VV_BOOSTX
@@ -1409,7 +1409,7 @@ function adCreateApp() {
                 const matchingAdgroup = this.abxAdgroupsForTargeting[0];
                 if (matchingAdgroup) {
                     this.adgroupId = matchingAdgroup.adgroup_id;
-                    this.generateNames();
+                this.generateNames();
                 }
             }
         },

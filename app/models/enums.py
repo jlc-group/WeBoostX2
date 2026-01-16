@@ -44,6 +44,17 @@ class ContentSource(str, enum.Enum):
     UGC = "ugc"             # User generated content
 
 
+class ContentStaffRole(str, enum.Enum):
+    """Role of staff in content creation"""
+    ACTOR = "actor"           # นักแสดง
+    EDITOR = "editor"         # ตัดต่อ
+    CREATIVE = "creative"     # Creative
+    CAMERAMAN = "cameraman"   # ตากล้อง
+    DIRECTOR = "director"     # ผู้กำกับ
+    PRODUCER = "producer"     # โปรดิวเซอร์
+    OTHER = "other"           # อื่นๆ
+
+
 class ContentStatus(str, enum.Enum):
     """Content status in the system"""
     READY = "ready"         # Ready for ads
@@ -56,9 +67,9 @@ class ContentStatus(str, enum.Enum):
 
 class AdAccountStatus(str, enum.Enum):
     """Ad account status"""
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    SUSPENDED = "suspended"
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    SUSPENDED = "SUSPENDED"
 
 
 class CampaignObjective(str, enum.Enum):

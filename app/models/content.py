@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, String, Boolean, Enum, Text, Date, DateT
 from sqlalchemy.orm import relationship
 
 from app.models.base import BaseModel, SoftDeleteMixin
-from app.models.enums import Platform, ContentType, ContentSource, ContentStatus
+from app.models.enums import Platform, ContentType, ContentSource, ContentStatus, ContentStaffRole
 
 
 class Content(BaseModel, SoftDeleteMixin):
@@ -40,6 +40,13 @@ class Content(BaseModel, SoftDeleteMixin):
     # Classification
     # ============================================
     content_type = Column(Enum(ContentType), default=ContentType.OTHER, index=True)
+    # content_type: สำหรับ budget allocation (SALE, REVIEW, BRANDING, ECOM, OTHER)
+    # ใช้ใน budget allocation และ ABX adgroup creation
+    
+    content_tags = Column(JSON, nullable=True)  # ["tutorial", "unboxing", "comparison", "testimonial"]
+    # content_tags: สำหรับ classification อื่นๆ ที่ต้องการเพิ่มได้เรื่อยๆ
+    # ไม่จำกัดจำนวน tags และสามารถเพิ่มใหม่ได้ตลอดเวลา
+    
     content_source = Column(Enum(ContentSource), nullable=True)
     status = Column(Enum(ContentStatus), default=ContentStatus.READY, index=True)
     
@@ -143,6 +150,38 @@ class Content(BaseModel, SoftDeleteMixin):
     ads = relationship("Ad", back_populates="content")
     employee = relationship("Employee", backref="contents", foreign_keys=[employee_id])
     influencer = relationship("Influencer", backref="contents", foreign_keys=[influencer_id])
+    staff_allocations = relationship("ContentStaffAllocation", back_populates="content", cascade="all, delete-orphan")
+
+
+class ContentStaffAllocation(BaseModel, SoftDeleteMixin):
+    """
+    Staff allocation for content creation
+    รองรับการเลือกพนักงานหลายคน พร้อม % และ role
+    """
+    
+    __tablename__ = "content_staff_allocations"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Content reference
+    content_id = Column(Integer, ForeignKey("contents.id"), nullable=False, index=True)
+    
+    # Employee reference
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False, index=True)
+    
+    # Role and percentage
+    # ใช้ String แทน Enum เพื่อหลีกเลี่ยงปัญหา SQLAlchemy ส่ง enum name แทน value
+    role = Column(String(50), nullable=False)  # นักแสดง, ตัดต่อ, creative, etc.
+    percentage = Column(Numeric(5, 2), nullable=False)  # 0-100
+    
+    # Optional notes
+    notes = Column(Text, nullable=True)  # หมายเหตุเพิ่มเติม
+    
+    # ============================================
+    # Relationships
+    # ============================================
+    content = relationship("Content", back_populates="staff_allocations")
+    employee = relationship("Employee", backref="content_allocations")
 
 
 class ContentScoreHistory(BaseModel):

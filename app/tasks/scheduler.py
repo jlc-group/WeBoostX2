@@ -65,6 +65,30 @@ def start_scheduler():
         name="Sync ads spend data from TikTok",
         replace_existing=True,
     )
+
+    # ============================================
+    # TikTok Ad Daily Performance (every 30 minutes)
+    # - incremental/backfill into ad_performance_daily
+    # ============================================
+    scheduler.add_job(
+        func=sync_tiktok_ad_daily_performance_job,
+        trigger=IntervalTrigger(minutes=30),
+        id="sync_tiktok_ad_daily_performance",
+        name="Sync TikTok ad daily performance (incremental/backfill)",
+        replace_existing=True,
+    )
+
+    # ============================================
+    # Aggregate Content Cost from Daily (every 60 minutes)
+    # - reads ad_performance_daily and updates contents.ads_total_cost
+    # ============================================
+    scheduler.add_job(
+        func=aggregate_content_cost_from_daily_job,
+        trigger=IntervalTrigger(minutes=60),
+        id="aggregate_content_cost_from_daily",
+        name="Aggregate Content ads_total_cost from ad_performance_daily",
+        replace_existing=True,
+    )
     
     # ============================================
     # ACE/ABX Details Update (every 60 minutes, after ads sync)
@@ -74,6 +98,40 @@ def start_scheduler():
         trigger=IntervalTrigger(minutes=60),
         id="update_ace_abx",
         name="Update ACE/ABX details from ads_details",
+        replace_existing=True,
+    )
+    
+    # ============================================
+    # Content Expire Date Update (every 60 minutes)
+    # - Influencer: auth_end_time from Spark Ads
+    # - Official/Other: platform_created_at + 2 years
+    # ============================================
+    scheduler.add_job(
+        func=update_content_expire_dates_job,
+        trigger=IntervalTrigger(minutes=60),
+        id="update_content_expire_dates",
+        name="Update content expire dates (influencer auth / official +2yr)",
+        replace_existing=True,
+    )
+    
+    # ============================================
+    # Spark Auth Jobs (every 30 minutes)
+    # - Auto-bind unbound auth codes with content
+    # - Check and mark expired auth codes
+    # ============================================
+    scheduler.add_job(
+        func=spark_auth_auto_bind_job,
+        trigger=IntervalTrigger(minutes=30),
+        id="spark_auth_auto_bind",
+        name="Auto-bind Spark Auth codes with content",
+        replace_existing=True,
+    )
+    
+    scheduler.add_job(
+        func=spark_auth_expire_check_job,
+        trigger=CronTrigger(hour=1, minute=0),  # Daily at 1 AM
+        id="spark_auth_expire_check",
+        name="Check and mark expired Spark Auth codes",
         replace_existing=True,
     )
     
@@ -210,6 +268,28 @@ def sync_ads_spend_job():
         print(f"[{datetime.now()}] Ads spend sync failed: {e}")
 
 
+def sync_tiktok_ad_daily_performance_job():
+    """Incremental/backfill TikTok daily ad performance into ad_performance_daily."""
+    print(f"[{datetime.now()}] Running TikTok ad daily performance job...")
+    try:
+        from app.tasks.sync_tasks import sync_tiktok_ad_performance_daily
+        result = sync_tiktok_ad_performance_daily(chunk_days=2, default_start_days=30, max_accounts=0)
+        print(f"[{datetime.now()}] TikTok ad daily performance job completed: {result}")
+    except Exception as e:
+        print(f"[{datetime.now()}] TikTok ad daily performance job failed: {e}")
+
+
+def aggregate_content_cost_from_daily_job():
+    """Aggregate Content ads_total_cost from ad_performance_daily (TikTok now, extend later)."""
+    print(f"[{datetime.now()}] Running aggregate content cost from daily job...")
+    try:
+        from app.tasks.sync_tasks import aggregate_content_cost_from_ad_performance_daily
+        result = aggregate_content_cost_from_ad_performance_daily(platform="TIKTOK", lookback_days=7)
+        print(f"[{datetime.now()}] Aggregate content cost from daily completed: {result}")
+    except Exception as e:
+        print(f"[{datetime.now()}] Aggregate content cost from daily failed: {e}")
+
+
 def update_ace_abx_job():
     """Update ACE/ABX ad counts and details from ads_details"""
     print(f"[{datetime.now()}] Running ACE/ABX update job...")
@@ -219,6 +299,49 @@ def update_ace_abx_job():
         print(f"[{datetime.now()}] ACE/ABX update completed")
     except Exception as e:
         print(f"[{datetime.now()}] ACE/ABX update failed: {e}")
+
+
+def update_content_expire_dates_job():
+    """
+    Update expire_date for all content:
+    - INFLUENCER: auth_end_time from TikTok Spark Ads API
+    - PAGE/STAFF/UGC: platform_created_at + 2 years
+    """
+    print(f"[{datetime.now()}] Running content expire dates update job...")
+    try:
+        from app.tasks.sync_tasks import update_content_expire_dates
+        result = update_content_expire_dates()
+        print(f"[{datetime.now()}] Content expire dates update completed: {result}")
+    except Exception as e:
+        print(f"[{datetime.now()}] Content expire dates update failed: {e}")
+
+
+def spark_auth_auto_bind_job():
+    """
+    Auto-bind Spark Auth codes with content
+    
+    สำหรับกรณีที่ import auth codes ก่อน แล้ว content ถูก sync มาทีหลัง
+    """
+    print(f"[{datetime.now()}] Running Spark Auth auto-bind job...")
+    try:
+        from app.services.spark_auth_service import SparkAuthService
+        result = SparkAuthService.run_auto_bind_job()
+        print(f"[{datetime.now()}] Spark Auth auto-bind completed: {result}")
+    except Exception as e:
+        print(f"[{datetime.now()}] Spark Auth auto-bind failed: {e}")
+
+
+def spark_auth_expire_check_job():
+    """
+    Check and mark expired Spark Auth codes
+    """
+    print(f"[{datetime.now()}] Running Spark Auth expire check job...")
+    try:
+        from app.services.spark_auth_service import SparkAuthService
+        result = SparkAuthService.run_expire_check_job()
+        print(f"[{datetime.now()}] Spark Auth expire check completed: {result}")
+    except Exception as e:
+        print(f"[{datetime.now()}] Spark Auth expire check failed: {e}")
 
 
 def calculate_scores_job():

@@ -57,7 +57,7 @@ pip install -r requirements.txt
 
 ### 2. Configure Environment
 
-Create `.env` file:
+Create `.env` file (recommended: copy from `env.example`):
 
 ```env
 # Database

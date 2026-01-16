@@ -1,26 +1,25 @@
 """
 Settings API endpoints (Ad accounts, platform configs)
 """
-from typing import Optional, Dict, List
 import json
+from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db, require_admin
+from app.models.enums import Platform
 from app.models.platform import AdAccount
 from app.models.system import AppSetting
-from app.models.enums import Platform
-from app.schemas.settings import (
-    AdAccountResponse,
-    AdAccountCreate,
-    AdAccountUpdate,
-    TikTokConfig,
-    TikTokChannelsConfig,
-)
-from app.schemas.common import DataResponse, ListResponse
 from app.models.user import User
-
+from app.schemas.common import DataResponse, ListResponse
+from app.schemas.settings import (
+    AdAccountCreate,
+    AdAccountResponse,
+    AdAccountUpdate,
+    TikTokChannelsConfig,
+    TikTokConfig,
+)
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -40,7 +39,18 @@ def list_ad_accounts(
     accounts = query.order_by(AdAccount.id.desc()).all()
 
     return ListResponse(
-        data=[AdAccountResponse.model_validate(a) for a in accounts],
+        data=[
+            AdAccountResponse(
+                id=a.id,
+                name=a.name,
+                platform=a.platform,
+                external_account_id=a.external_account_id,
+                is_active=a.is_active if a.is_active is not None else True,
+                timezone=a.timezone,
+                currency=a.currency,
+            )
+            for a in accounts
+        ],
         total=len(accounts),
     )
 
@@ -72,7 +82,7 @@ def create_ad_account(
         name=payload.name,
         platform=payload.platform,
         external_account_id=payload.external_account_id,
-        status=payload.status,
+        is_active=payload.is_active if hasattr(payload, 'is_active') else True,
         timezone=payload.timezone,
         currency=payload.currency or "THB",
         config=payload.config,
@@ -82,19 +92,47 @@ def create_ad_account(
     db.refresh(account)
 
     return DataResponse(
-        data=AdAccountResponse.model_validate(account),
+        data=AdAccountResponse(
+            id=account.id,
+            name=account.name,
+            platform=account.platform,
+            external_account_id=account.external_account_id,
+            is_active=account.is_active if account.is_active is not None else True,
+            timezone=account.timezone,
+            currency=account.currency,
+        ),
         message="Ad account created",
     )
 
 
 @router.put("/ad-accounts/{account_id}", response_model=DataResponse[AdAccountResponse])
-def update_ad_account(
+async def update_ad_account(
     account_id: int,
-    payload: AdAccountUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
     """Update ad account"""
+
+    # Parse body manually to avoid 422 when client sends non-object payload
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid JSON payload",
+        )
+
+    if not isinstance(body, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Payload must be an object",
+        )
+
+    payload = AdAccountUpdate(**body)
+
+    # Debug log payload for troubleshooting
+    print(f"[update_ad_account] payload received: {payload.model_dump()}")
 
     account = db.query(AdAccount).filter(AdAccount.id == account_id).first()
     if not account:
@@ -105,8 +143,8 @@ def update_ad_account(
 
     if payload.name is not None:
         account.name = payload.name
-    if payload.status is not None:
-        account.status = payload.status
+    if payload.is_active is not None:
+        account.is_active = payload.is_active
     if payload.timezone is not None:
         account.timezone = payload.timezone
     if payload.currency is not None:
@@ -118,7 +156,15 @@ def update_ad_account(
     db.refresh(account)
 
     return DataResponse(
-        data=AdAccountResponse.model_validate(account),
+        data=AdAccountResponse(
+            id=account.id,
+            name=account.name,
+            platform=account.platform,
+            external_account_id=account.external_account_id,
+            is_active=account.is_active if account.is_active is not None else True,
+            timezone=account.timezone,
+            currency=account.currency,
+        ),
         message="Ad account updated",
     )
 

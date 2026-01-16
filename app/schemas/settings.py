@@ -4,7 +4,7 @@ Settings-related schemas
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel
 
-from app.models.enums import Platform, AdAccountStatus
+from app.models.enums import Platform
 
 
 class AdAccountBase(BaseModel):
@@ -13,7 +13,7 @@ class AdAccountBase(BaseModel):
     name: str
     platform: Platform
     external_account_id: str
-    status: AdAccountStatus = AdAccountStatus.ACTIVE
+    is_active: bool = True
     timezone: Optional[str] = None
     currency: Optional[str] = "THB"
     config: Optional[Dict[str, Any]] = None
@@ -29,16 +29,22 @@ class AdAccountUpdate(BaseModel):
     """Update ad account payload"""
 
     name: Optional[str] = None
-    status: Optional[AdAccountStatus] = None
+    is_active: Optional[bool] = None
     timezone: Optional[str] = None
     currency: Optional[str] = None
     config: Optional[Dict[str, Any]] = None
 
 
-class AdAccountResponse(AdAccountBase):
+class AdAccountResponse(BaseModel):
     """Ad account response"""
 
     id: int
+    name: str
+    platform: Platform
+    external_account_id: str
+    is_active: bool = True
+    timezone: Optional[str] = None
+    currency: Optional[str] = "THB"
 
     class Config:
         from_attributes = True
