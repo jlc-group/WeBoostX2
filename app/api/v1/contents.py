@@ -53,9 +53,9 @@ def get_contents(
     from datetime import datetime, timedelta
 
     from app.models.enums import ContentSource
-    
+
     query = db.query(Content).filter(Content.deleted_at.is_(None))
-    
+
     # Apply filters
     if platform:
         try:
@@ -63,21 +63,21 @@ def get_contents(
             query = query.filter(Content.platform == platform_enum)
         except ValueError:
             pass
-    
+
     if status:
         try:
             status_enum = ContentStatus(status.lower())
             query = query.filter(Content.status == status_enum)
         except ValueError:
             pass
-    
+
     if content_type:
         try:
             type_enum = ContentType(content_type.lower())
             query = query.filter(Content.content_type == type_enum)
         except ValueError:
             pass
-    
+
     # Filter by content source (influencer, page, staff)
     if content_source:
         try:
@@ -85,7 +85,7 @@ def get_contents(
             query = query.filter(Content.content_source == source_enum)
         except ValueError:
             pass
-    
+
     # Filter by content tag
     if content_tag:
         from sqlalchemy import cast, func
@@ -94,7 +94,7 @@ def get_contents(
         query = query.filter(
             cast(Content.content_tags, JSONB).contains([content_tag])
         )
-    
+
     # Filter by staff (employee) ID
     if staff_id:
         from app.models.content import ContentStaffAllocation
@@ -108,11 +108,11 @@ def get_contents(
                 )
             )
         )
-    
+
     # Filter by creator name
     if creator:
         query = query.filter(Content.creator_name == creator)
-    
+
     # Filter by expiring soon (within 7 days)
     if expiring == 'soon':
         today = datetime.now().date()
@@ -122,7 +122,7 @@ def get_contents(
             Content.expire_date <= expire_threshold,
             Content.expire_date >= today
         )
-    
+
     if search:
         query = query.filter(
             or_(
@@ -131,7 +131,7 @@ def get_contents(
                 Content.platform_post_id.ilike(f"%{search}%")
             )
         )
-    
+
     # Filter by product codes (exact match - same products, same count)
     if products:
         product_list = sorted([p.strip() for p in products.split(',') if p.strip()])
@@ -143,17 +143,17 @@ def get_contents(
             query = query.filter(
                 cast(Content.product_codes, JSONB) == cast(product_list, JSONB)
             )
-    
+
     # Advanced filters for shortcuts
     if min_pfm is not None:
         query = query.filter(Content.pfm_score >= min_pfm)
-    
+
     if min_views is not None:
         query = query.filter(Content.views >= min_views)
-    
+
     if boosted:
         query = query.filter(Content.boost_factor > 1)
-    
+
     if need_attention:
         # Content that needs attention: missing products OR missing content_type
         query = query.filter(
@@ -164,7 +164,7 @@ def get_contents(
                 Content.content_type == ContentType.OTHER
             )
         )
-    
+
     if no_targeting:
         # Content without targeting template
         query = query.filter(
@@ -173,15 +173,15 @@ def get_contents(
                 Content.preferred_targeting_ids == []
             )
         )
-    
+
     if has_ads == "yes":
         query = query.filter(Content.ads_count > 0)
     elif has_ads == "no":
         query = query.filter(or_(Content.ads_count.is_(None), Content.ads_count == 0))
-    
+
     # Get total count
     total = query.count()
-    
+
     # Determine sort order
     sort_order = None
     if sort_by == "pfm_score":
@@ -195,7 +195,7 @@ def get_contents(
     else:
         # Default sort by platform_created_at DESC
         sort_order = Content.platform_created_at.desc().nullslast()
-    
+
     # Apply pagination and ordering
     # Eager load staff_allocations for better performance
     from sqlalchemy.orm import joinedload
@@ -204,28 +204,28 @@ def get_contents(
         .offset((page - 1) * page_size)\
         .limit(page_size)\
         .all()
-    
+
     # Build targeting template lookup for displaying names
     from app.models.platform import TargetingTemplate
     all_targeting_ids = set()
     for c in contents:
         if c.preferred_targeting_ids:
             all_targeting_ids.update(c.preferred_targeting_ids)
-    
+
     targeting_map = {}
     if all_targeting_ids:
         templates = db.query(TargetingTemplate).filter(
             TargetingTemplate.id.in_(list(all_targeting_ids))
         ).all()
         targeting_map = {t.id: t.name for t in templates}
-    
+
     # Convert to dict
     data = []
     for c in contents:
         # Use thumbnail service to get best available thumbnail URL
         # (local if available, otherwise remote URL)
         thumbnail_url = process_content_thumbnail(c)
-        
+
         data.append({
             "id": c.id,
             "platform": c.platform.value if c.platform else None,
@@ -280,7 +280,7 @@ def get_contents(
                 for sa in c.staff_allocations if sa.deleted_at is None
             ] if hasattr(c, 'staff_allocations') else [],
         })
-    
+
     return ListResponse(
         success=True,
         data=data,
@@ -300,7 +300,7 @@ def get_best_content_each_product(
     from datetime import datetime
 
     from sqlalchemy import text
-    
+
     # Build platform condition - cast to platform enum type
     platform_condition = ""
     params = {}
@@ -308,7 +308,7 @@ def get_best_content_each_product(
         # PostgreSQL enum needs uppercase value
         platform_condition = "AND c.platform = CAST(:platform AS platform)"
         params["platform"] = platform.upper()
-    
+
     # Use raw SQL for complex query with JSON array elements
     # Use subquery to filter valid arrays first, then expand
     query = text(f"""
@@ -326,13 +326,13 @@ def get_best_content_each_product(
         ),
         content_products AS (
             -- Now expand the product_codes array
-            SELECT 
+            SELECT
                 vc.*,
                 jsonb_array_elements_text(vc.product_codes::jsonb) AS product_code
             FROM valid_contents vc
         ),
         best_per_product AS (
-            SELECT 
+            SELECT
                 product_code,
                 MAX(pfm_score) AS max_pfm
             FROM content_products
@@ -340,15 +340,15 @@ def get_best_content_each_product(
         )
         SELECT DISTINCT cp.id
         FROM content_products cp
-        JOIN best_per_product bp 
-            ON cp.product_code = bp.product_code 
+        JOIN best_per_product bp
+            ON cp.product_code = bp.product_code
             AND cp.pfm_score = bp.max_pfm
         ORDER BY cp.id
     """)
-    
+
     result = db.execute(query, params).fetchall()
     content_ids = [row[0] for row in result]
-    
+
     if not content_ids:
         return ListResponse(
             success=True,
@@ -358,7 +358,7 @@ def get_best_content_each_product(
             page_size=len(content_ids) or 1,
             pages=1
         )
-    
+
     # Fetch full content objects
     from sqlalchemy.orm import joinedload
     contents = db.query(Content)\
@@ -366,26 +366,26 @@ def get_best_content_each_product(
         .filter(Content.id.in_(content_ids))\
         .order_by(Content.pfm_score.desc().nullslast())\
         .all()
-    
+
     # Build targeting template lookup
     from app.models.platform import TargetingTemplate
     all_targeting_ids = set()
     for c in contents:
         if c.preferred_targeting_ids:
             all_targeting_ids.update(c.preferred_targeting_ids)
-    
+
     targeting_map = {}
     if all_targeting_ids:
         templates = db.query(TargetingTemplate).filter(
             TargetingTemplate.id.in_(list(all_targeting_ids))
         ).all()
         targeting_map = {t.id: t.name for t in templates}
-    
+
     # Convert to dict
     data = []
     for c in contents:
         thumbnail_url = process_content_thumbnail(c)
-        
+
         data.append({
             "id": c.id,
             "platform": c.platform.value if c.platform else None,
@@ -440,7 +440,7 @@ def get_best_content_each_product(
                 for sa in c.staff_allocations if sa.deleted_at is None
             ] if hasattr(c, 'staff_allocations') else [],
         })
-    
+
     return ListResponse(
         success=True,
         data=data,
@@ -454,29 +454,29 @@ def get_best_content_each_product(
 @router.get("/stats")
 def get_content_stats(db: Session = Depends(get_db)):
     """Get content statistics"""
-    
+
     # Count by platform
     tiktok_count = db.query(Content).filter(
         Content.platform == Platform.TIKTOK,
         Content.deleted_at.is_(None)
     ).count()
-    
+
     facebook_count = db.query(Content).filter(
         Content.platform == Platform.FACEBOOK,
         Content.deleted_at.is_(None)
     ).count()
-    
+
     instagram_count = db.query(Content).filter(
         Content.platform == Platform.INSTAGRAM,
         Content.deleted_at.is_(None)
     ).count()
-    
+
     # Average PFM
     avg_pfm = db.query(func.avg(Content.pfm_score)).filter(
         Content.pfm_score.isnot(None),
         Content.deleted_at.is_(None)
     ).scalar() or 0
-    
+
     return DataResponse(
         success=True,
         data={
@@ -492,16 +492,16 @@ def get_content_stats(db: Session = Depends(get_db)):
 def sync_contents(db: Session = Depends(get_db)):
     """Sync contents and ads from all platforms"""
     from app.tasks import sync_tasks
-    
+
     results = {
         "tiktok": {"success": False, "synced": 0},
         "facebook": {"success": False, "synced": 0},
         "instagram": {"success": False, "synced": 0},
         "ads": {"success": False, "synced": 0}
     }
-    
+
     total_synced = 0
-    
+
     # Resolve effective TikTok credentials
     # - access_token: ใช้ TikTokService.get_access_token() (รองรับทั้ง token ตรง ๆ และ refresh token)
     # - business_id: ใช้จาก settings (TIKTOK_BUSINESS_ID หรือ BUSINESS_ID)
@@ -532,10 +532,10 @@ def sync_contents(db: Session = Depends(get_db)):
                 results["tiktok"].get("message", "")
                 + " | TikTok business ID not configured"
             ).strip(" |")
-    
+
     # TODO: Sync Facebook
     # TODO: Sync Instagram
-    
+
     return DataResponse(
         success=True,
         data={
@@ -553,13 +553,13 @@ def sync_ads_to_content(
 ):
     """
     Sync TikTok Ads และ map กลับไปหา Content
-    
+
     Flow ใหม่:
     1. ดึง Ads ที่มี spend ใน N วันล่าสุด (ไม่ดึงทั้งหมด)
     2. ดึง metadata ของ Ads เหล่านั้น
     3. ดึง lifetime cost ของ Ads เหล่านั้น
     4. อัพเดท Ads, Content.ads_count และ Content.ads_total_cost
-    
+
     Args:
         days: จำนวนวันที่จะดึง ads ที่มี activity (default=7)
     """
@@ -587,9 +587,9 @@ def sync_ads_to_content(
 @router.post("/recalculate-pfm")
 def recalculate_pfm(db: Session = Depends(get_db)):
     """Recalculate PFM scores for all TikTok content"""
-    
+
     updated = TikTokService.update_all_pfm_scores()
-    
+
     return DataResponse(
         success=True,
         data={"updated": updated},
@@ -757,15 +757,15 @@ def import_tiktok_content(
 @router.get("/{content_id}")
 def get_content(content_id: int, db: Session = Depends(get_db)):
     """Get single content by ID"""
-    
+
     content = db.query(Content).filter(
         Content.id == content_id,
         Content.deleted_at.is_(None)
     ).first()
-    
+
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
-    
+
     return DataResponse(
         success=True,
         data={
@@ -834,56 +834,56 @@ def update_content(
     from datetime import datetime
 
     from app.models.enums import ContentSource
-    
+
     try:
         content = db.query(Content).filter(
             Content.id == content_id,
             Content.deleted_at.is_(None)
         ).first()
-        
+
         if not content:
             raise HTTPException(status_code=404, detail="Content not found")
-        
+
         # Update content type
         if "content_type" in payload:
             try:
                 content.content_type = ContentType(payload["content_type"].lower())
             except ValueError:
                 pass
-        
+
         # Update status
         if "status" in payload:
             try:
                 content.status = ContentStatus(payload["status"].lower())
             except ValueError:
                 pass
-        
+
         # Update content source
         if "content_source" in payload:
             try:
                 content.content_source = ContentSource(payload["content_source"].lower())
             except ValueError:
                 pass
-        
+
         # Update content tags
         if "content_tags" in payload:
             content.content_tags = payload["content_tags"] if payload["content_tags"] else []
-        
+
         # Update product codes
         if "product_codes" in payload:
             content.product_codes = payload["product_codes"]
-        
+
         # Update employee_id (legacy - keep for backward compatibility)
         if "employee_id" in payload:
             content.employee_id = payload["employee_id"] if payload["employee_id"] else None
-        
+
         # Update staff_allocations (new multi-staff system)
         if "staff_allocations" in payload:
             staff_allocations = payload["staff_allocations"]
-            
+
             # Filter out empty allocations (no employee_id)
             staff_allocations = [sa for sa in staff_allocations if sa.get("employee_id")]
-            
+
             # Validate: percentage รวมกันต้อง = 100% (ถ้ามี allocations)
             if staff_allocations:
                 total_percentage = sum(float(sa.get("percentage", 0)) for sa in staff_allocations)
@@ -892,14 +892,14 @@ def update_content(
                         status_code=400,
                         detail=f"Staff allocations percentage must sum to 100%. Current sum: {total_percentage}%"
                     )
-            
+
             # ลบ allocations เก่าทั้งหมด (soft delete)
             db.query(ContentStaffAllocation).filter(
                 ContentStaffAllocation.content_id == content_id,
                 ContentStaffAllocation.deleted_at.is_(None)
             ).update({"deleted_at": datetime.now()})
             db.flush()  # Flush to ensure soft delete is applied before adding new ones
-            
+
             # เพิ่ม allocations ใหม่
             if staff_allocations:
                 for sa_data in staff_allocations:
@@ -907,14 +907,14 @@ def update_content(
                     employee_id = int(sa_data["employee_id"]) if sa_data.get("employee_id") else None
                     if not employee_id:
                         continue  # Skip if no employee_id
-                    
-                    # Role เป็น string (lowercase) 
+
+                    # Role เป็น string (lowercase)
                     role_str = sa_data.get("role", "other").lower()
                     # Validate role - must be one of the valid values
                     valid_roles = ['actor', 'editor', 'creative', 'cameraman', 'director', 'producer', 'other']
                     if role_str not in valid_roles:
                         role_str = 'other'
-                    
+
                     allocation = ContentStaffAllocation(
                         content_id=content_id,
                         employee_id=employee_id,
@@ -923,11 +923,11 @@ def update_content(
                         notes=sa_data.get("notes")
                     )
                     db.add(allocation)
-        
+
         # Update influencer_cost
         if "influencer_cost" in payload:
             content.influencer_cost = payload["influencer_cost"] if payload["influencer_cost"] else None
-        
+
         # Update expire_date
         if "expire_date" in payload:
             expire_str = payload["expire_date"]
@@ -938,7 +938,7 @@ def update_content(
                     pass
             else:
                 content.expire_date = None
-        
+
         # Update preferred_targeting_ids (multi-select targeting templates)
         if "preferred_targeting_ids" in payload:
             targeting_ids = payload["preferred_targeting_ids"]
@@ -951,9 +951,9 @@ def update_content(
                 content.preferred_targeting_ids = valid_ids
             else:
                 content.preferred_targeting_ids = None
-        
+
         db.commit()
-        
+
         return DataResponse(
             success=True,
             message="Content updated"
@@ -977,24 +977,24 @@ def update_content(
 def get_content_ads(content_id: int, refresh: bool = False, db: Session = Depends(get_db)):
     """Get ads for a specific content. Set refresh=true to fetch real-time data from TikTok API."""
     from app.models import Ad
-    
+
     content = db.query(Content).filter(
         Content.id == content_id,
         Content.deleted_at.is_(None)
     ).first()
-    
+
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
-    
+
     ads_list = []
     total_cost = 0.0
     ace_count = 0
     abx_count = 0
-    
+
     # Parse ads_details from content (handles both dict and list formats)
     ads_details_raw = content.ads_details
     ads_from_details = []
-    
+
     if ads_details_raw:
         # Handle format: {'tiktok': [...]} or {'facebook': [...]}
         if isinstance(ads_details_raw, dict):
@@ -1004,7 +1004,7 @@ def get_content_ads(content_id: int, refresh: bool = False, db: Session = Depend
         # Handle format: [...]
         elif isinstance(ads_details_raw, list):
             ads_from_details = ads_details_raw
-    
+
     # If refresh requested and we have TikTok ads, fetch real-time data
     if refresh and content.platform.value == 'tiktok' and ads_from_details:
         try:
@@ -1012,7 +1012,7 @@ def get_content_ads(content_id: int, refresh: bool = False, db: Session = Depend
             ads_from_details = refresh_tiktok_ads_data(content, ads_from_details, db)
         except Exception as e:
             print(f"Error refreshing TikTok ads: {e}")
-    
+
     # Process ads from details
     for ad_detail in ads_from_details:
         if isinstance(ad_detail, dict):
@@ -1023,7 +1023,7 @@ def get_content_ads(content_id: int, refresh: bool = False, db: Session = Depend
             ad_name = (ad_detail.get("ad_name") or "").upper()
             campaign_name = (ad_detail.get("campaign_name") or "").upper()
             adgroup_name = (ad_detail.get("adgroup_name") or "").upper()
-            
+
             if "_ABX_" in ad_name or "_ABX_" in campaign_name or "_ABX_" in adgroup_name:
                 ad_type = "ABX"
                 abx_count += 1
@@ -1034,10 +1034,10 @@ def get_content_ads(content_id: int, refresh: bool = False, db: Session = Depend
                 # General: ads created directly in TikTok Ads Manager
                 ad_type = "GENERAL"
                 # Don't count as ACE or ABX - these are manually created ads
-            
+
             spend = float(ad_detail.get("ad_total_cost") or ad_detail.get("spend") or 0)
             total_cost += spend
-            
+
             ads_list.append({
                 "id": ad_detail.get("ad_id") or ad_detail.get("adgroup_id"),
                 "ad_id": ad_detail.get("ad_id"),
@@ -1057,7 +1057,7 @@ def get_content_ads(content_id: int, refresh: bool = False, db: Session = Depend
                 "create_time": ad_detail.get("create_time"),
                 "modify_time": ad_detail.get("modify_time"),
             })
-    
+
     # Also check Ad model if we don't have ads from details
     if not ads_list:
         ads = db.query(Ad).filter(Ad.content_id == content_id).all()
@@ -1065,12 +1065,12 @@ def get_content_ads(content_id: int, refresh: bool = False, db: Session = Depend
             ad_type = "ABX" if ad.ad_type and "abx" in ad.ad_type.lower() else "ACE"
             spend = float(ad.total_spend) if ad.total_spend else 0
             total_cost += spend
-            
+
             if ad_type == "ABX":
                 abx_count += 1
             else:
                 ace_count += 1
-            
+
             ads_list.append({
                 "id": ad.id,
                 "ad_id": ad.external_ad_id,
@@ -1083,7 +1083,7 @@ def get_content_ads(content_id: int, refresh: bool = False, db: Session = Depend
                 "total_cost": spend,
                 "advertiser_id": ad.external_ad_account_id,
             })
-    
+
     return DataResponse(
         success=True,
         data=ads_list,
@@ -1101,7 +1101,7 @@ def get_content_ads(content_id: int, refresh: bool = False, db: Session = Depend
 def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
     """
     Refresh ads data from TikTok API (similar to old system's get_updated_ads_details)
-    
+
     This function fetches real-time data from TikTok API and updates:
     1. Spend data (lifetime spend per ad) - via Report API
     2. Ad details (ad_name, adgroup_name, campaign_name, operation_status, etc.) - via Ad API
@@ -1112,90 +1112,90 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
 
     from app.models import ABXAdgroup
     from app.services.tiktok_ads_service import TikTokAdsService
-    
+
     if not ads_details:
         return ads_details
-    
+
     # Group ads by advertiser_id and collect IDs
     advertiser_ads = {}
     all_ad_ids_by_advertiser = {}
     all_adgroup_ids_by_advertiser = {}
-    
+
     for ad in ads_details:
         advertiser_id = ad.get('advertiser_id')
         adgroup_id = ad.get('adgroup_id')
         ad_id = ad.get('ad_id')
-        
+
         if advertiser_id:
             if advertiser_id not in advertiser_ads:
                 advertiser_ads[advertiser_id] = []
                 all_ad_ids_by_advertiser[advertiser_id] = []
                 all_adgroup_ids_by_advertiser[advertiser_id] = set()
-            
+
             advertiser_ads[advertiser_id].append(ad)
-            
+
             if ad_id:
                 all_ad_ids_by_advertiser[advertiser_id].append(str(ad_id))
             if adgroup_id:
                 all_adgroup_ids_by_advertiser[advertiser_id].add(adgroup_id)
-    
+
     total_ad_cost = 0.0
     ace_count = 0
     abx_count = 0
     general_count = 0
-    
+
     # Fetch real-time data from TikTok API for each advertiser
     # Use ThreadPoolExecutor for parallel API calls (like old system)
     for advertiser_id, ads in advertiser_ads.items():
         if not advertiser_id:
             continue
-        
+
         ad_ids_for_this = all_ad_ids_by_advertiser.get(advertiser_id, [])
         adgroup_ids_for_this = list(all_adgroup_ids_by_advertiser.get(advertiser_id, []))
-        
+
         # Initialize maps
         ad_spend_map = {}
         ad_details_map = {}
         adgroup_map = {}
-            
+
         try:
             # Parallel API calls for better performance
             # NOTE: Use requests instead of httpx for Report API (httpx has issues with TikTok)
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                 # 1. Fetch lifetime spend for this advertiser (real-time!)
                 future_spend = executor.submit(
-                    TikTokAdsService.fetch_lifetime_spend_by_advertiser, 
+                    TikTokAdsService.fetch_lifetime_spend_by_advertiser,
                     advertiser_id
                 )
-                
+
                 # 2. Fetch ad details (ad_name, campaign_name, adgroup_name, status, etc.)
                 future_ad_details = executor.submit(
-                    TikTokAdsService.fetch_ad_details_batch, 
-                    advertiser_id, 
+                    TikTokAdsService.fetch_ad_details_batch,
+                    advertiser_id,
                     ad_ids_for_this
                 )
-                
+
                 # 3. Fetch adgroup details (budget, budget_mode, operation_status)
                 future_adgroup = executor.submit(
-                    TikTokAdsService.fetch_adgroup_details, 
-                    advertiser_id, 
+                    TikTokAdsService.fetch_adgroup_details,
+                    advertiser_id,
                     adgroup_ids_for_this
                 )
-            
+
                 # Wait for all to complete
                 ad_spend_map = future_spend.result()
                 ad_details_map = future_ad_details.result()
                 adgroup_map = future_adgroup.result()
-            
+
             # Update each ad with real-time data
             for ad in ads:
                 ad_id = ad.get('ad_id')
                 adgroup_id = ad.get('adgroup_id')
-                
+
                 # 1. Update spend (real-time from Report API)
                 # NOTE: Convert ad_id to string for comparison (TikTok API returns string IDs)
                 ad_id_str = str(ad_id) if ad_id else None
-                
+
                 if ad_id_str and ad_id_str in ad_spend_map:
                     spend = ad_spend_map[ad_id_str]
                     ad['ad_total_cost'] = spend
@@ -1209,7 +1209,7 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
                     ad['spend'] = old_cost
                     total_ad_cost += old_cost
                     print(f"[refresh] ad {ad_id_str} NOT in spend_map, using old cost: {old_cost}")
-                
+
                 # 2. Update ad details (ad_name, campaign_name, adgroup_name, status, etc.)
                 if ad_id and ad_id in ad_details_map:
                     ad_info = ad_details_map[ad_id]
@@ -1224,7 +1224,7 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
                     ad['create_time'] = ad_info.get('create_time') or ad.get('create_time')
                     ad['modify_time'] = ad_info.get('modify_time') or ad.get('modify_time')
                     ad['tiktok_item_id'] = ad_info.get('tiktok_item_id') or ad.get('tiktok_item_id')
-                
+
                 # 3. Update adgroup info (budget, budget_mode, status)
                 if adgroup_id and adgroup_id in adgroup_map:
                     ag_info = adgroup_map[adgroup_id]
@@ -1240,12 +1240,12 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
                         ad['operation_status'] = ag_info.get('operation_status')
                     if not ad.get('secondary_status'):
                         ad['secondary_status'] = ag_info.get('secondary_status')
-                
+
                 # 4. Classify ACE/ABX/General based on name patterns
                 ad_name = (ad.get('ad_name') or '').upper()
                 campaign_name = (ad.get('campaign_name') or '').upper()
                 adgroup_name = (ad.get('adgroup_name') or '').upper()
-                
+
                 if '_ABX_' in ad_name or '_ABX_' in campaign_name or '_ABX_' in adgroup_name:
                     ad['type'] = 'ABX'
                     abx_count += 1
@@ -1255,7 +1255,7 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
                 else:
                     ad['type'] = 'GENERAL'
                     general_count += 1
-                    
+
         except Exception as e:
             print(f"[refresh_tiktok_ads_data] Error fetching data for advertiser {advertiser_id}: {e}")
             # Still classify ads even if API fails - use name-based detection
@@ -1263,11 +1263,11 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
                 ad_name = (ad.get('ad_name') or '').upper()
                 campaign_name = (ad.get('campaign_name') or '').upper()
                 adgroup_name = (ad.get('adgroup_name') or '').upper()
-                
+
                 # Keep existing spend
                 old_cost = float(ad.get('ad_total_cost') or ad.get('spend') or 0)
                 total_ad_cost += old_cost
-                
+
                 if '_ABX_' in ad_name or '_ABX_' in campaign_name or '_ABX_' in adgroup_name:
                     ad['type'] = 'ABX'
                     abx_count += 1
@@ -1277,7 +1277,7 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
                 else:
                     ad['type'] = 'GENERAL'
                     general_count += 1
-    
+
     # Update content in database
     content.ads_count = len(ads_details)
     content.ace_ad_count = ace_count
@@ -1285,16 +1285,16 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
     content.ads_total_cost = total_ad_cost
     content.ace_details = [ad for ad in ads_details if ad.get('type') == 'ACE'] or None
     content.abx_details = [ad for ad in ads_details if ad.get('type') == 'ABX'] or None
-    
+
     # Update ads_details in database
     platform_key = content.platform.value.lower()
     content.ads_details = {platform_key: ads_details}
     db.commit()
-    
+
     print(f"[refresh_tiktok_ads_data] Updated content {content.id}: "
           f"total_cost=฿{total_ad_cost:,.2f}, ads={len(ads_details)}, "
           f"ACE={ace_count}, ABX={abx_count}, General={general_count}")
-    
+
     return ads_details
 
 
@@ -1302,30 +1302,30 @@ def refresh_tiktok_ads_data(content, ads_details: list, db: Session) -> list:
 def set_content_boost(content_id: int, payload: dict, db: Session = Depends(get_db)):
     """Set boost for content"""
     from datetime import datetime, timedelta
-    
+
     content = db.query(Content).filter(
         Content.id == content_id,
         Content.deleted_at.is_(None)
     ).first()
-    
+
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
-    
+
     boost_factor = payload.get("boost_factor", 1.5)
     boost_duration = payload.get("boost_duration", 7)  # days
     boost_reason = payload.get("boost_reason", "")
-    
+
     # Calculate dates
     start_date = datetime.now().date()
     end_date = start_date + timedelta(days=boost_duration)
-    
+
     content.boost_factor = boost_factor
     content.boost_start_date = start_date
     content.boost_end_date = end_date
     content.boost_reason = boost_reason
-    
+
     db.commit()
-    
+
     return DataResponse(
         success=True,
         message=f"Boost set to {boost_factor}x for {boost_duration} days",
@@ -1340,22 +1340,22 @@ def set_content_boost(content_id: int, payload: dict, db: Session = Depends(get_
 @router.delete("/{content_id}/boost")
 def remove_content_boost(content_id: int, db: Session = Depends(get_db)):
     """Remove boost from content"""
-    
+
     content = db.query(Content).filter(
         Content.id == content_id,
         Content.deleted_at.is_(None)
     ).first()
-    
+
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
-    
+
     content.boost_factor = 1.0
     content.boost_start_date = None
     content.boost_end_date = None
     content.boost_reason = None
-    
+
     db.commit()
-    
+
     return DataResponse(
         success=True,
         message="Boost removed"
@@ -1368,21 +1368,21 @@ def bulk_update_contents(payload: dict, db: Session = Depends(get_db)):
     from datetime import datetime
 
     from app.models.enums import ContentSource
-    
+
     ids = payload.get("ids", [])
     updates = payload.get("updates", {})
-    
+
     if not ids:
         raise HTTPException(status_code=400, detail="No content IDs provided")
-    
+
     # Get contents
     contents = db.query(Content).filter(
         Content.id.in_(ids),
         Content.deleted_at.is_(None)
     ).all()
-    
+
     updated_count = 0
-    
+
     for content in contents:
         # Update content type
         if "content_type" in updates:
@@ -1390,14 +1390,14 @@ def bulk_update_contents(payload: dict, db: Session = Depends(get_db)):
                 content.content_type = ContentType(updates["content_type"].lower())
             except ValueError:
                 pass
-        
+
         # Update status
         if "status" in updates:
             try:
                 content.status = ContentStatus(updates["status"].lower())
             except ValueError:
                 pass
-        
+
         # Update expire_date
         if "expire_date" in updates:
             expire_str = updates["expire_date"]
@@ -1408,11 +1408,11 @@ def bulk_update_contents(payload: dict, db: Session = Depends(get_db)):
                     pass
             else:
                 content.expire_date = None
-        
+
         updated_count += 1
-    
+
     db.commit()
-    
+
     return DataResponse(
         success=True,
         data={"updated": updated_count},
@@ -1433,7 +1433,7 @@ def update_adgroup_status(
 ):
     """
     Update AdGroup status via TikTok API
-    
+
     Body:
     {
         "status": "ENABLE" | "DISABLE",
@@ -1441,31 +1441,31 @@ def update_adgroup_status(
     }
     """
     from app.services.tiktok_ads_service import TikTokAdsService
-    
+
     content = db.query(Content).filter(
         Content.id == content_id,
         Content.deleted_at.is_(None)
     ).first()
-    
+
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
-    
+
     status = payload.get("status")
     advertiser_id = payload.get("advertiser_id")
-    
+
     if not status or status not in ["ENABLE", "DISABLE"]:
         raise HTTPException(status_code=400, detail="Invalid status. Use 'ENABLE' or 'DISABLE'")
-    
+
     if not advertiser_id:
         raise HTTPException(status_code=400, detail="Missing advertiser_id")
-    
+
     # Call TikTok API
     result = TikTokAdsService.update_adgroup_status(advertiser_id, [adgroup_id], status)
-    
+
     if result.get("success"):
         # Update local database
         _update_adgroup_in_content(content, adgroup_id, {"operation_status": status, "adgroup_status": status}, db)
-        
+
         return DataResponse(
             success=True,
             message=f"AdGroup status updated to {status}",
@@ -1488,7 +1488,7 @@ def update_adgroup_budget_api(
 ):
     """
     Update AdGroup budget via TikTok API
-    
+
     Body:
     {
         "budget": 5000,
@@ -1496,31 +1496,31 @@ def update_adgroup_budget_api(
     }
     """
     from app.services.tiktok_ads_service import TikTokAdsService
-    
+
     content = db.query(Content).filter(
         Content.id == content_id,
         Content.deleted_at.is_(None)
     ).first()
-    
+
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
-    
+
     budget = payload.get("budget")
     advertiser_id = payload.get("advertiser_id")
-    
+
     if budget is None or budget < 0:
         raise HTTPException(status_code=400, detail="Invalid budget. Must be a positive number")
-    
+
     if not advertiser_id:
         raise HTTPException(status_code=400, detail="Missing advertiser_id")
-    
+
     # Call TikTok API
     result = TikTokAdsService.update_adgroup_budget(advertiser_id, adgroup_id, float(budget))
-    
+
     if result.get("success"):
         # Update local database
         _update_adgroup_in_content(content, adgroup_id, {"adgroup_budget": budget}, db)
-        
+
         return DataResponse(
             success=True,
             message=f"AdGroup budget updated to ฿{budget:,.0f}",
@@ -1543,7 +1543,7 @@ def update_adgroup_budget_and_status(
 ):
     """
     Update AdGroup budget AND status via TikTok API
-    
+
     Body:
     {
         "budget": 5000,  (optional)
@@ -1552,28 +1552,28 @@ def update_adgroup_budget_and_status(
     }
     """
     from app.services.tiktok_ads_service import TikTokAdsService
-    
+
     content = db.query(Content).filter(
         Content.id == content_id,
         Content.deleted_at.is_(None)
     ).first()
-    
+
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
-    
+
     budget = payload.get("budget")
     status = payload.get("status")
     advertiser_id = payload.get("advertiser_id")
-    
+
     if not advertiser_id:
         raise HTTPException(status_code=400, detail="Missing advertiser_id")
-    
+
     if budget is None and status is None:
         raise HTTPException(status_code=400, detail="Provide at least budget or status to update")
-    
+
     if status and status not in ["ENABLE", "DISABLE"]:
         raise HTTPException(status_code=400, detail="Invalid status. Use 'ENABLE' or 'DISABLE'")
-    
+
     # Call TikTok API
     result = TikTokAdsService.update_adgroup_budget_and_status(
         advertiser_id,
@@ -1581,7 +1581,7 @@ def update_adgroup_budget_and_status(
         budget=float(budget) if budget is not None else None,
         status=status
     )
-    
+
     if result.get("success"):
         # Update local database
         updates = {}
@@ -1590,15 +1590,15 @@ def update_adgroup_budget_and_status(
         if status:
             updates["operation_status"] = status
             updates["adgroup_status"] = status
-        
+
         _update_adgroup_in_content(content, adgroup_id, updates, db)
-        
+
         message_parts = []
         if budget is not None:
             message_parts.append(f"Budget: ฿{budget:,.0f}")
         if status:
             message_parts.append(f"Status: {status}")
-        
+
         return DataResponse(
             success=True,
             message=f"AdGroup updated - {', '.join(message_parts)}",
@@ -1616,32 +1616,32 @@ def _update_adgroup_in_content(content: Content, adgroup_id: str, updates: dict,
     """Helper function to update adgroup info in content.ads_details"""
     if not content.ads_details:
         return
-    
+
     platform_key = content.platform.value.lower()
     ads_list = content.ads_details.get(platform_key, [])
-    
+
     for ad in ads_list:
         if ad.get("adgroup_id") == adgroup_id:
             ad.update(updates)
-    
+
     # Update ace_details and abx_details too
     if content.ace_details:
         for ad in content.ace_details:
             if ad.get("adgroup_id") == adgroup_id:
                 ad.update(updates)
-    
+
     if content.abx_details:
         for ad in content.abx_details:
             if ad.get("adgroup_id") == adgroup_id:
                 ad.update(updates)
-    
+
     # Recalculate ads_total_cost if budget was updated
     total_cost = 0
     for ad in ads_list:
         spend = ad.get("ad_total_cost") or ad.get("spend") or 0
         if isinstance(spend, (int, float)):
             total_cost += spend
-    
+
     content.ads_total_cost = total_cost
     content.ads_details = {platform_key: ads_list}
     db.commit()
