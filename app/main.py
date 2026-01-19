@@ -16,15 +16,15 @@ from app.api.v1 import api_router, page_router
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    print(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    print(f"📍 Environment: {settings.ENVIRONMENT}")
-    print(f"🔧 Debug mode: {settings.DEBUG}")
+    print(f"[STARTUP] Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"[ENV] Environment: {settings.ENVIRONMENT}")
+    print(f"[DEBUG] Debug mode: {settings.DEBUG}")
     
     # Initialize scheduler if enabled
     if settings.SCHEDULER_ENABLED:
         from app.tasks.scheduler import start_scheduler
         start_scheduler()
-        print("⏰ Scheduler started")
+        print("[SCHEDULER] Scheduler started")
     
     yield
     
@@ -32,9 +32,9 @@ async def lifespan(app: FastAPI):
     if settings.SCHEDULER_ENABLED:
         from app.tasks.scheduler import stop_scheduler
         stop_scheduler()
-        print("⏰ Scheduler stopped")
+        print("[SCHEDULER] Scheduler stopped")
     
-    print(f"👋 Shutting down {settings.APP_NAME}")
+    print(f"[SHUTDOWN] Shutting down {settings.APP_NAME}")
 
 
 def create_app() -> FastAPI:

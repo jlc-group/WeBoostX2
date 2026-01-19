@@ -2,15 +2,19 @@
 Page routes - serve HTML templates
 """
 from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import Optional
+from starlette.responses import Response
 
 from app.core.deps import get_db, get_optional_user
+from app.core.config import settings
+from app.core.security import create_access_token, create_refresh_token
 from app.models.user import User
+from app.models.enums import AdAccountStatus, UserStatus, UserRole
 from app.models import Content, Campaign, AdGroup, Ad
-from app.models.enums import AdAccountStatus
+from app.services.sso_service import sso_service
 
 router = APIRouter(tags=["Pages"])
 
@@ -35,8 +39,135 @@ async def home(request: Request):
 async def login_page(request: Request):
     """Login page"""
     return templates.TemplateResponse("auth/login.html", {
-        "request": request
+        "request": request,
+        "sso_enabled": settings.SSO_ENABLED,
     })
+
+
+# ============================================
+# SSO Authentication Routes
+# ============================================
+
+@router.get("/auth/sso")
+async def sso_redirect(request: Request):
+    """Redirect to JLC SSO for login"""
+    if not settings.SSO_ENABLED:
+        return RedirectResponse(url="/login?error=sso_disabled")
+    
+    # Generate state for CSRF protection
+    state = sso_service.generate_state()
+    
+    # Store state in session (using cookies for simplicity)
+    auth_url = sso_service.get_authorization_url(state)
+    
+    response = RedirectResponse(url=auth_url)
+    response.set_cookie(
+        key="oauth_state",
+        value=state,
+        httponly=True,
+        max_age=600,  # 10 minutes
+        samesite="lax"
+    )
+    
+    return response
+
+
+@router.get("/auth/callback")
+async def sso_callback(
+    request: Request,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Handle OAuth2 callback from JLC SSO"""
+    
+    # Check for errors
+    if error:
+        return RedirectResponse(url=f"/login?error={error}")
+    
+    if not code:
+        return RedirectResponse(url="/login?error=no_code")
+    
+    # Verify state
+    stored_state = request.cookies.get("oauth_state")
+    if not state or state != stored_state:
+        return RedirectResponse(url="/login?error=invalid_state")
+    
+    # Exchange code for token
+    token_data = await sso_service.exchange_code_for_token(code)
+    if not token_data:
+        return RedirectResponse(url="/login?error=token_failed")
+    
+    access_token = token_data.get("access_token")
+    if not access_token:
+        return RedirectResponse(url="/login?error=no_token")
+    
+    # Get user info from SSO
+    user_info = await sso_service.get_user_info(access_token)
+    if not user_info:
+        return RedirectResponse(url="/login?error=userinfo_failed")
+    
+    # Find or create user
+    email = user_info.get("email")
+    if not email:
+        return RedirectResponse(url="/login?error=no_email")
+    
+    user = db.query(User).filter(User.email == email).first()
+    
+    if not user:
+        # Auto-create user from SSO
+        from app.core.security import get_password_hash
+        import secrets
+        
+        user = User(
+            email=email,
+            password_hash=get_password_hash(secrets.token_urlsafe(32)),  # Random password
+            first_name=user_info.get("given_name", ""),
+            last_name=user_info.get("family_name", ""),
+            display_name=user_info.get("name", email.split("@")[0]),
+            role=UserRole.ADMIN if user_info.get("is_admin") else UserRole.VIEWER,
+            status=UserStatus.ACTIVE,  # Auto-approved from SSO
+            sso_id=user_info.get("sub"),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        # Update SSO ID if not set
+        if not user.sso_id:
+            user.sso_id = user_info.get("sub")
+            db.commit()
+    
+    # Create local JWT tokens
+    local_access_token = create_access_token(
+        subject=user.id,
+        additional_claims={"role": user.role.value}
+    )
+    local_refresh_token = create_refresh_token(subject=user.id)
+    
+    # Redirect to dashboard with tokens
+    # We'll set tokens via JavaScript on the client side
+    response = RedirectResponse(url="/dashboard")
+    response.delete_cookie("oauth_state")
+    
+    # Set tokens in cookies for the frontend to pick up
+    response.set_cookie(
+        key="sso_access_token",
+        value=local_access_token,
+        httponly=False,  # Allow JS access
+        max_age=86400,
+        samesite="lax"
+    )
+    response.set_cookie(
+        key="sso_refresh_token", 
+        value=local_refresh_token,
+        httponly=False,
+        max_age=604800,
+        samesite="lax"
+    )
+    
+    return response
 
 
 @router.get("/register", response_class=HTMLResponse)

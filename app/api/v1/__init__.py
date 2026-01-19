@@ -3,7 +3,7 @@ API v1 routes
 """
 from fastapi import APIRouter
 
-from app.api.v1 import auth, health, pages, contents, settings, tasks, employees, products, targeting, ads, spark_auth
+from app.api.v1 import auth, health, pages, contents, settings, tasks, employees, products, targeting, ads, spark_auth, facebook
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -20,6 +20,8 @@ api_router.include_router(products.groups_router)
 api_router.include_router(targeting.router)
 api_router.include_router(ads.router)
 api_router.include_router(spark_auth.router)
+api_router.include_router(facebook.router)  # Facebook Integration
 
 # Page routes (no prefix)
 page_router = pages.router
+

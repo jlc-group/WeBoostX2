@@ -4,43 +4,537 @@
 {% block page_subtitle %}จัดการ Facebook Content ทั้งหมด{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <!-- Coming Soon Card -->
-    <div class="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
-        <div class="w-20 h-20 bg-blue-100 rounded-full mx-auto mb-6 flex items-center justify-center">
-            <svg class="w-10 h-10 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-            </svg>
-        </div>
-        <h2 class="text-2xl font-bold text-gray-800 mb-3">Facebook Content</h2>
-        <p class="text-gray-500 mb-6 max-w-md mx-auto">
-            การ Sync และจัดการ Facebook Content กำลังอยู่ระหว่างการพัฒนา
-            จะสามารถใช้งานได้เร็วๆ นี้
-        </p>
-        
-        <!-- Stats placeholder -->
-        <div class="flex justify-center gap-6">
-            <div class="text-center">
-                <p class="text-3xl font-bold text-gray-800">{{ stats.total }}</p>
-                <p class="text-sm text-gray-500">Contents</p>
+<div class="space-y-6" x-data="facebookContentsPage()">
+    <!-- Header Actions -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <!-- Filters -->
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Search -->
+            <div class="relative">
+                <input type="text" x-model="filters.search" @input.debounce.500ms="loadContents()"
+                       placeholder="ค้นหา caption..."
+                       class="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 bg-white w-64 text-sm">
+                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
             </div>
-            <div class="text-center">
-                <p class="text-3xl font-bold text-gray-400">-</p>
-                <p class="text-sm text-gray-500">Avg Score</p>
+
+            <!-- Post Type Filter -->
+            <select x-model="filters.post_type" @change="loadContents()"
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 bg-white text-sm">
+                <option value="">ทุกประเภท</option>
+                <option value="video">Video</option>
+                <option value="image">Image</option>
+                <option value="reel">Reel</option>
+            </select>
+
+            <!-- Sort -->
+            <select x-model="filters.sort" @change="loadContents()"
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 bg-white text-sm">
+                <option value="newest">ล่าสุด</option>
+                <option value="impressions">Impressions สูงสุด</option>
+                <option value="reach">Reach สูงสุด</option>
+                <option value="engagement">Engagement สูงสุด</option>
+            </select>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-3">
+            <!-- Sync Button -->
+            <button @click="showSyncModal = true"
+                    class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                <span>Sync Content</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Total Contents</p>
+                    <p class="text-2xl font-bold text-gray-800" x-text="formatNumber(stats.total)">{{ stats.total }}</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    </svg>
+                </div>
             </div>
         </div>
-        
-        <!-- Features coming -->
-        <div class="mt-8 pt-8 border-t border-gray-100">
-            <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">คุณสมบัติที่กำลังพัฒนา</h3>
-            <div class="flex flex-wrap justify-center gap-2">
-                <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">Page Video Sync</span>
-                <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">Reels Integration</span>
-                <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">FB Score Calculation</span>
-                <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">Ads Performance</span>
+
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Total Impressions</p>
+                    <p class="text-2xl font-bold text-gray-800" x-text="formatNumber(stats.impressions)">0</p>
+                </div>
+                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Total Reach</p>
+                    <p class="text-2xl font-bold text-gray-800" x-text="formatNumber(stats.reach)">0</p>
+                </div>
+                <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Avg FB Score</p>
+                    <p class="text-2xl font-bold text-gray-800" x-text="stats.avg_score ? stats.avg_score.toFixed(2) : '-'">{{ stats.avg_score|default('-', true) }}</p>
+                </div>
+                <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                    <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                    </svg>
+                </div>
             </div>
         </div>
     </div>
-</div>
-{% endblock %}
 
+    <!-- Content Grid -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <!-- Loading State -->
+        <div x-show="loading" class="p-12 text-center">
+            <div class="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+            <p class="mt-4 text-gray-500">กำลังโหลด...</p>
+        </div>
+
+        <!-- Empty State -->
+        <div x-show="!loading && contents.length === 0" class="p-12 text-center">
+            <div class="w-20 h-20 bg-gray-100 rounded-full mx-auto mb-6 flex items-center justify-center">
+                <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">ยังไม่มี Facebook Content</h3>
+            <p class="text-gray-500 mb-6">กด Sync Content เพื่อดึงข้อมูลจาก Facebook Page</p>
+            <button @click="showSyncModal = true"
+                    class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors font-medium">
+                Sync Content
+            </button>
+        </div>
+
+        <!-- Content Table -->
+        <div x-show="!loading && contents.length > 0" class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                        <th class="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Content</th>
+                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Impressions</th>
+                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reach</th>
+                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Likes</th>
+                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Comments</th>
+                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Shares</th>
+                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Score</th>
+                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Posted</th>
+                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <template x-for="content in contents" :key="content.id">
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <!-- Content Info -->
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-4">
+                                    <!-- Thumbnail -->
+                                    <div class="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
+                                        <template x-if="content.thumbnail_url">
+                                            <img :src="content.thumbnail_url" class="w-full h-full object-cover" :alt="content.caption">
+                                        </template>
+                                        <template x-if="!content.thumbnail_url">
+                                            <div class="w-full h-full flex items-center justify-center">
+                                                <svg class="w-8 h-8 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                                                </svg>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    <!-- Caption -->
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm text-gray-800 line-clamp-2" x-text="content.caption || 'No caption'"></p>
+                                        <p class="text-xs text-gray-400 mt-1 font-mono" x-text="content.platform_post_id"></p>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <!-- Metrics -->
+                            <td class="px-4 py-4 text-center">
+                                <span class="font-semibold text-gray-800" x-text="formatNumber(content.impressions)"></span>
+                            </td>
+                            <td class="px-4 py-4 text-center">
+                                <span class="font-semibold text-gray-800" x-text="formatNumber(content.reach)"></span>
+                            </td>
+                            <td class="px-4 py-4 text-center">
+                                <span class="text-gray-600" x-text="formatNumber(content.likes)"></span>
+                            </td>
+                            <td class="px-4 py-4 text-center">
+                                <span class="text-gray-600" x-text="formatNumber(content.comments)"></span>
+                            </td>
+                            <td class="px-4 py-4 text-center">
+                                <span class="text-gray-600" x-text="formatNumber(content.shares)"></span>
+                            </td>
+
+                            <!-- Score -->
+                            <td class="px-4 py-4 text-center">
+                                <template x-if="content.fb_score">
+                                    <span class="px-2.5 py-1 rounded-lg text-sm font-semibold"
+                                          :class="content.fb_score >= 7 ? 'bg-green-100 text-green-700' : content.fb_score >= 4 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'"
+                                          x-text="content.fb_score.toFixed(1)"></span>
+                                </template>
+                                <template x-if="!content.fb_score">
+                                    <span class="text-gray-400">-</span>
+                                </template>
+                            </td>
+
+                            <!-- Date -->
+                            <td class="px-4 py-4 text-center">
+                                <span class="text-sm text-gray-500" x-text="formatDate(content.platform_created_at)"></span>
+                            </td>
+
+                            <!-- Actions -->
+                            <td class="px-4 py-4 text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                    <a :href="content.url" target="_blank"
+                                       class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                       title="View on Facebook">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                                        </svg>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div x-show="!loading && contents.length > 0" class="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+            <p class="text-sm text-gray-500">
+                แสดง <span x-text="(currentPage - 1) * pageSize + 1"></span> - <span x-text="Math.min(currentPage * pageSize, totalItems)"></span>
+                จาก <span x-text="totalItems"></span> รายการ
+            </p>
+            <div class="flex items-center gap-2">
+                <button @click="prevPage()" :disabled="currentPage <= 1"
+                        class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                    ก่อนหน้า
+                </button>
+                <span class="px-4 py-2 text-sm text-gray-600">หน้า <span x-text="currentPage"></span></span>
+                <button @click="nextPage()" :disabled="currentPage * pageSize >= totalItems"
+                        class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                    ถัดไป
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Modal -->
+    <div x-show="showSyncModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:leave="transition ease-in duration-200">
+        <div class="min-h-screen px-4 flex items-center justify-center">
+            <!-- Backdrop -->
+            <div class="fixed inset-0 bg-black/50" @click="showSyncModal = false"></div>
+
+            <!-- Modal -->
+            <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Sync Facebook Content</h3>
+
+                <form @submit.prevent="syncContent()">
+                    <div class="space-y-4">
+                        <!-- Page ID -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Facebook Page</label>
+                            <select x-model="syncForm.page_id" required
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500">
+                                <option value="">-- เลือก Page --</option>
+                                <template x-for="page in availablePages" :key="page.id">
+                                    <option :value="page.id" x-text="page.name + ' (' + page.id + ')'"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        <!-- Days Back -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">ดึงย้อนหลัง (วัน)</label>
+                            <select x-model="syncForm.days_back"
+                                    class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500">
+                                <option value="30">30 วัน</option>
+                                <option value="90">90 วัน</option>
+                                <option value="180">180 วัน</option>
+                                <option value="365">365 วัน</option>
+                            </select>
+                        </div>
+
+                        <!-- Sync Type -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">ประเภท</label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" x-model="syncForm.type" value="posts" class="text-blue-600">
+                                    <span class="text-sm text-gray-600">Posts</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" x-model="syncForm.type" value="videos" class="text-blue-600">
+                                    <span class="text-sm text-gray-600">Videos Only</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3 mt-6">
+                        <button type="button" @click="showSyncModal = false"
+                                class="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-gray-600 font-medium hover:bg-gray-50">
+                            ยกเลิก
+                        </button>
+                        <button type="submit" :disabled="syncing"
+                                class="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium disabled:opacity-50">
+                            <span x-show="!syncing">Sync</span>
+                            <span x-show="syncing" class="flex items-center justify-center gap-2">
+                                <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Syncing...
+                            </span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div x-show="toast.show" x-cloak
+         x-transition:enter="transition ease-out duration-300 transform"
+         x-transition:enter-start="translate-y-2 opacity-0"
+         x-transition:enter-end="translate-y-0 opacity-100"
+         x-transition:leave="transition ease-in duration-200 transform"
+         x-transition:leave-start="translate-y-0 opacity-100"
+         x-transition:leave-end="translate-y-2 opacity-0"
+         class="fixed bottom-6 right-6 z-50">
+        <div class="px-6 py-4 rounded-xl shadow-lg flex items-center gap-3"
+             :class="toast.type === 'success' ? 'bg-green-600 text-white' : toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'">
+            <template x-if="toast.type === 'success'">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+            </template>
+            <template x-if="toast.type === 'error'">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </template>
+            <span x-text="toast.message"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+function facebookContentsPage() {
+    return {
+        // State
+        loading: true,
+        contents: [],
+        stats: {
+            total: {{ stats.total }},
+            impressions: 0,
+            reach: 0,
+            avg_score: {{ stats.avg_score if stats.avg_score else 'null' }}
+        },
+
+        // Pagination
+        currentPage: 1,
+        pageSize: 50,
+        totalItems: 0,
+
+        // Filters
+        filters: {
+            search: '',
+            post_type: '',
+            sort: 'newest'
+        },
+
+        // Sync
+        showSyncModal: false,
+        syncing: false,
+        availablePages: [],
+        syncForm: {
+            page_id: '',
+            days_back: 365,
+            type: 'posts'
+        },
+
+        // Toast
+        toast: {
+            show: false,
+            message: '',
+            type: 'success'
+        },
+
+        // Initialize
+        init() {
+            this.loadContents();
+            this.loadStats();
+            this.loadPages();
+        },
+
+        // Load available pages from config
+        async loadPages() {
+            try {
+                const response = await fetch('/api/v1/facebook/config/pages');
+                const data = await response.json();
+                this.availablePages = data.pages || [];
+                // Auto-select first page if available
+                if (this.availablePages.length > 0 && !this.syncForm.page_id) {
+                    this.syncForm.page_id = this.availablePages[0].id;
+                }
+            } catch (error) {
+                console.error('Error loading pages:', error);
+            }
+        },
+
+        // Load contents from API
+        async loadContents() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams({
+                    skip: (this.currentPage - 1) * this.pageSize,
+                    limit: this.pageSize
+                });
+
+                if (this.filters.search) {
+                    params.append('search', this.filters.search);
+                }
+
+                const response = await fetch(`/api/v1/facebook/contents?${params}`);
+                const data = await response.json();
+
+                this.contents = data;
+                this.totalItems = data.length; // TODO: Get from API header
+
+            } catch (error) {
+                console.error('Error loading contents:', error);
+                this.showToast('เกิดข้อผิดพลาดในการโหลดข้อมูล', 'error');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // Load stats
+        async loadStats() {
+            try {
+                const response = await fetch('/api/v1/facebook/contents/stats/summary');
+                const data = await response.json();
+
+                this.stats = {
+                    total: data.total_posts || 0,
+                    impressions: data.total_impressions || 0,
+                    reach: data.total_reach || 0,
+                    avg_score: data.average_fb_score
+                };
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        },
+
+        // Sync content
+        async syncContent() {
+            this.syncing = true;
+            try {
+                const endpoint = this.syncForm.type === 'videos'
+                    ? '/api/v1/facebook/sync/videos'
+                    : '/api/v1/facebook/sync/posts';
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        page_id: this.syncForm.page_id,
+                        days_back: parseInt(this.syncForm.days_back)
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    this.showToast(`Sync สำเร็จ: สร้าง ${data.created}, อัปเดต ${data.updated}`, 'success');
+                    this.showSyncModal = false;
+                    this.loadContents();
+                    this.loadStats();
+                } else {
+                    this.showToast(data.detail || 'เกิดข้อผิดพลาด', 'error');
+                }
+            } catch (error) {
+                console.error('Sync error:', error);
+                this.showToast('เกิดข้อผิดพลาดในการ Sync', 'error');
+            } finally {
+                this.syncing = false;
+            }
+        },
+
+        // Pagination
+        prevPage() {
+            if (this.currentPage > 1) {
+                this.currentPage--;
+                this.loadContents();
+            }
+        },
+
+        nextPage() {
+            if (this.currentPage * this.pageSize < this.totalItems) {
+                this.currentPage++;
+                this.loadContents();
+            }
+        },
+
+        // Utilities
+        formatNumber(num) {
+            if (!num) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toLocaleString();
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('th-TH', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        },
+
+        showToast(message, type = 'success') {
+            this.toast = { show: true, message, type };
+            setTimeout(() => {
+                this.toast.show = false;
+            }, 3000);
+        }
+    };
+}
+</script>
+{% endblock %}

@@ -25,7 +25,7 @@
             <h3 class="text-3xl font-bold text-gray-800">฿{{ "{:,.0f}".format(stats.today_spend) }}</h3>
             <p class="text-gray-500 text-sm mt-1">ค่าใช้จ่ายวันนี้</p>
         </div>
-        
+
         <!-- Total Contents -->
         <div class="stat-card animate-fade-in animate-delay-100">
             <div class="flex items-center justify-between mb-4">
@@ -44,7 +44,7 @@
             <h3 class="text-3xl font-bold text-gray-800">{{ "{:,}".format(stats.total_contents) }}</h3>
             <p class="text-gray-500 text-sm mt-1">Contents ทั้งหมด</p>
         </div>
-        
+
         <!-- Active Campaigns -->
         <div class="stat-card animate-fade-in animate-delay-200">
             <div class="flex items-center justify-between mb-4">
@@ -57,7 +57,7 @@
             <h3 class="text-3xl font-bold text-gray-800">{{ stats.active_campaigns }}</h3>
             <p class="text-gray-500 text-sm mt-1">Campaigns ที่ใช้งาน</p>
         </div>
-        
+
         <!-- Average PFM -->
         <div class="stat-card animate-fade-in animate-delay-300">
             <div class="flex items-center justify-between mb-4">
@@ -77,7 +77,7 @@
             <p class="text-gray-500 text-sm mt-1">Average PFM Score</p>
         </div>
     </div>
-    
+
     <!-- Charts Row -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Performance Chart -->
@@ -90,18 +90,22 @@
                     <option>This month</option>
                 </select>
             </div>
-            <canvas id="performanceChart" height="250"></canvas>
+            <div style="position: relative; height: 300px; width: 100%;">
+                <canvas id="performanceChart"></canvas>
+            </div>
         </div>
-        
+
         <!-- Platform Distribution -->
         <div class="bg-white rounded-2xl p-6 shadow-lg animate-fade-in animate-delay-100">
             <div class="flex items-center justify-between mb-6">
                 <h3 class="text-lg font-semibold text-gray-800">Platform Distribution</h3>
             </div>
-            <canvas id="platformChart" height="250"></canvas>
+            <div style="position: relative; height: 300px; width: 100%;">
+                <canvas id="platformChart"></canvas>
+            </div>
         </div>
     </div>
-    
+
     <!-- Recent Activity & Top Content -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Recent Activity -->
@@ -126,7 +130,7 @@
                 {% endfor %}
             </div>
         </div>
-        
+
         <!-- Top Content -->
         <div class="bg-white rounded-2xl p-6 shadow-lg animate-fade-in animate-delay-100">
             <h3 class="text-lg font-semibold text-gray-800 mb-4">Top Performing Content</h3>

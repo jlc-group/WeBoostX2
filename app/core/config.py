@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
-    
+
     # ============================================
     # Application Settings
     # ============================================
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "2.0.0"
     DEBUG: bool = True  # Enable debug by default for development
     ENVIRONMENT: str = "development"  # development, staging, production
-    
+
     # ============================================
     # Database Settings
     # ============================================
@@ -27,20 +27,20 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "weboostx"
     DATABASE_URL: Optional[str] = None
-    
+
     @property
     def database_url(self) -> str:
         """Get database URL, construct from parts if not provided"""
         if self.DATABASE_URL:
             return self.DATABASE_URL
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PWD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-    
+
     @property
     def async_database_url(self) -> str:
         """Get async database URL for SQLAlchemy async"""
         url = self.database_url
         return url.replace("postgresql://", "postgresql+asyncpg://")
-    
+
     # ============================================
     # Security Settings
     # ============================================
@@ -48,12 +48,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
-    
+
     # ============================================
     # CORS Settings
     # ============================================
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000"]
-    
+
     # ============================================
     # TikTok API Settings
     # ============================================
@@ -76,26 +76,53 @@ class Settings(BaseSettings):
     ADVERTISER_ID_ENTRA: Optional[str] = None
     ADVERTISER_ID_GRVT: Optional[str] = None
     TIKTOK_API_BASE_URL: str = "https://business-api.tiktok.com/open_api/v1.3"
-    
+
     # ============================================
     # Facebook/Meta API Settings
     # ============================================
     FACEBOOK_APP_ID: Optional[str] = None
     FACEBOOK_APP_SECRET: Optional[str] = None
     FACEBOOK_ACCESS_TOKEN: Optional[str] = None
-    FACEBOOK_API_VERSION: str = "v19.0"
+    FACEBOOK_API_VERSION: str = "v23.0"
     FACEBOOK_API_BASE_URL: str = "https://graph.facebook.com"
-    
+    # Page-level tokens (comma-separated for multiple pages)
+    FB_PAGE_ACCESS_TOKENS: Optional[str] = None
+    FB_USER_ACCESS_TOKEN: Optional[str] = None
+    FB_PAGE_IDS: Optional[str] = None
+    FB_AD_ACCOUNT_IDS: Optional[str] = None
+
     @property
     def facebook_api_url(self) -> str:
         return f"{self.FACEBOOK_API_BASE_URL}/{self.FACEBOOK_API_VERSION}"
-    
+
+    @property
+    def fb_page_access_token(self) -> Optional[str]:
+        """Get first FB page access token"""
+        tokens = self.FB_PAGE_ACCESS_TOKENS
+        if tokens:
+            return tokens.split(",")[0].strip()
+        return self.FACEBOOK_ACCESS_TOKEN
+
+    @property
+    def fb_page_ids(self) -> List[str]:
+        """Get list of FB page IDs"""
+        if self.FB_PAGE_IDS:
+            return [p.strip() for p in self.FB_PAGE_IDS.split(",") if p.strip()]
+        return []
+
+    @property
+    def fb_ad_account_ids(self) -> List[str]:
+        """Get list of FB ad account IDs"""
+        if self.FB_AD_ACCOUNT_IDS:
+            return [a.strip() for a in self.FB_AD_ACCOUNT_IDS.split(",") if a.strip()]
+        return []
+
     # ============================================
     # LINE Notify Settings
     # ============================================
     LINE_NOTIFY_TOKEN: Optional[str] = None
     LINE_NOTIFY_TOKEN_ADMIN: Optional[str] = None
-    
+
     # ============================================
     # Scheduler Settings
     # ============================================
@@ -103,12 +130,21 @@ class Settings(BaseSettings):
     CONTENT_SYNC_INTERVAL_MINUTES: int = 60
     AD_SYNC_INTERVAL_MINUTES: int = 30
     OPTIMIZATION_INTERVAL_HOURS: int = 2
-    
+
     # ============================================
     # Redis Settings (for caching/celery)
     # ============================================
     REDIS_URL: Optional[str] = None
-    
+
+    # ============================================
+    # JLC SSO Settings (OAuth2)
+    # ============================================
+    SSO_ENABLED: bool = True
+    SSO_BASE_URL: str = "http://127.0.0.1:9100"  # Internal SSO API
+    SSO_CLIENT_ID: str = "weboostx"
+    SSO_CLIENT_SECRET: str = ""
+    SSO_REDIRECT_URI: str = "http://localhost:8201/auth/callback"
+
     @property
     def tiktok_content_access_token(self) -> Optional[str]:
         """

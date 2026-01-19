@@ -1,0 +1,124 @@
+# ================================
+# WeBoostX 2.0 - Cursor Rules
+# ================================
+# Version: 1.0
+# Last Updated: 2026-01-17
+# ================================
+
+## 🎯 Project Overview
+
+WeBoostX 2.0 เป็นระบบจัดการโฆษณา Multi-Platform (TikTok, Facebook, Instagram)
+สำหรับ JLC Group โดยมีฟีเจอร์หลักดังนี้:
+
+- Content Management - จัดการ video/image content
+- Campaign Management - สร้างและจัดการ campaigns
+- Budget Optimization - ปรับงบประมาณอัตโนมัติ
+- Spark Ad Auth - จัดการ TikTok Spark Ads authorization
+- Performance Analytics - วิเคราะห์ประสิทธิภาพโฆษณา
+
+---
+
+## 🛠️ Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Backend | Python 3.12, FastAPI |
+| Frontend | Jinja2 Templates, TailwindCSS, Alpine.js |
+| Database | PostgreSQL 18 |
+| ORM | SQLAlchemy |
+| Auth | JWT (python-jose) |
+| Task Queue | APScheduler |
+
+---
+
+## 📁 Project Structure
+
+```
+apps/weboostx/
+├── app/
+│   ├── api/v1/           # API routes
+│   ├── core/             # Config, database, security
+│   ├── models/           # SQLAlchemy models
+│   ├── schemas/          # Pydantic schemas
+│   ├── services/         # Business logic
+│   ├── tasks/            # Background tasks
+│   ├── templates/        # Jinja2 HTML templates
+│   └── static/           # Static files
+├── scripts/              # Utility scripts
+├── requirements.txt
+└── run.py
+```
+
+---
+
+## 🖥️ Ports
+
+| Environment | Port |
+|-------------|------|
+| Development | 8201 |
+| Production | 9201 |
+
+---
+
+## 🚀 Running the App
+
+### Development
+```powershell
+cd D:\Server\apps\weboostx
+.\venv\Scripts\activate
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8201 --reload
+```
+
+### Production
+```powershell
+cd D:\Server\deploy\weboostx
+.\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 9201
+```
+
+---
+
+## 🔐 Environment Variables
+
+ดู config ที่: `D:\Server\run\weboostx\.env.dev` และ `.env.prod`
+
+Key variables:
+- `POSTGRES_*` - Database connection
+- `SECRET_KEY` - JWT secret
+- `TIKTOK_*` - TikTok API credentials
+- `SCHEDULER_ENABLED` - Enable background tasks
+
+---
+
+## 📝 Coding Guidelines
+
+1. **ตอบเป็นภาษาไทย** ยกเว้น code/technical terms
+2. **ใช้ Type hints** ใน Python functions
+3. **Docstrings** สำหรับ functions และ classes
+4. **Pydantic schemas** สำหรับ request/response validation
+5. **SQLAlchemy models** inherit จาก `BaseModel`
+
+---
+
+## 🔄 Session Protocol
+
+### เริ่ม Session
+1. อ่าน `STATUS.md` ก่อนเริ่มงาน
+2. สรุปสถานะให้ User ทราบ
+
+### จบ Session
+1. อัพเดท `STATUS.md`
+2. อัพเดท `PROGRESS.md` ถ้ามี feature ใหม่
+3. Commit changes พร้อม message ชัดเจน
+
+---
+
+## ⚠️ Important Notes
+
+- **ห้าม commit** `.env` files
+- **ห้าม commit** credentials หรือ API keys
+- Production database: `weboostx_dev_db` (shared with dev)
+- TikTok API มี rate limits - ระวังการเรียก API ถี่เกินไป
+
+---
+
+*WeBoostX 2.0 | JLC Group IT*

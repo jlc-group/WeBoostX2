@@ -40,6 +40,10 @@ class User(BaseModel, SoftDeleteMixin):
     approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     approved_at = Column(String, nullable=True)
     
+    # SSO Integration
+    sso_id = Column(String(255), unique=True, nullable=True)  # JLC SSO user ID
+    sso_user = Column(Boolean, default=False)  # True if user came from SSO
+    
     # Settings
     notification_settings = Column(Text, nullable=True)  # JSON string
     

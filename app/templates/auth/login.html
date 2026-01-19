@@ -102,6 +102,17 @@
                 <div class="flex-1 h-px bg-white/20"></div>
             </div>
             
+            {% if sso_enabled %}
+            <!-- SSO Login Button -->
+            <a href="/auth/sso" 
+               class="w-full flex items-center justify-center gap-3 bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 text-white font-semibold py-3.5 rounded-xl transition-all duration-300 mb-4">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                </svg>
+                <span>เข้าสู่ระบบด้วย JLC Account</span>
+            </a>
+            {% endif %}
+            
             <!-- Register Link -->
             <p class="text-center text-white/60">
                 ยังไม่มีบัญชี? 
@@ -117,6 +128,46 @@
 </div>
 
 <script>
+// Check for SSO tokens on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Get URL params for error messages
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get('error');
+    if (error) {
+        const errorMessages = {
+            'sso_disabled': 'SSO ถูกปิดใช้งาน',
+            'no_code': 'ไม่พบ authorization code',
+            'invalid_state': 'State ไม่ถูกต้อง กรุณาลองใหม่',
+            'token_failed': 'ไม่สามารถแลก token ได้',
+            'no_token': 'ไม่พบ access token',
+            'userinfo_failed': 'ไม่สามารถดึงข้อมูลผู้ใช้ได้',
+            'no_email': 'ไม่พบอีเมลจาก SSO'
+        };
+        Alpine.store('loginError', errorMessages[error] || 'เกิดข้อผิดพลาด: ' + error);
+    }
+    
+    // Check for SSO tokens in cookies
+    const ssoAccessToken = getCookie('sso_access_token');
+    const ssoRefreshToken = getCookie('sso_refresh_token');
+    
+    if (ssoAccessToken && ssoRefreshToken) {
+        // Move to localStorage
+        localStorage.setItem('access_token', ssoAccessToken);
+        localStorage.setItem('refresh_token', ssoRefreshToken);
+        
+        // Clear cookies
+        document.cookie = 'sso_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+        document.cookie = 'sso_refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    }
+});
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
 function loginForm() {
     return {
         email: '',
@@ -125,6 +176,24 @@ function loginForm() {
         showPassword: false,
         loading: false,
         error: null,
+        
+        init() {
+            // Check for SSO error from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            if (error) {
+                const errorMessages = {
+                    'sso_disabled': 'SSO ถูกปิดใช้งาน',
+                    'no_code': 'ไม่พบ authorization code',
+                    'invalid_state': 'State ไม่ถูกต้อง กรุณาลองใหม่',
+                    'token_failed': 'ไม่สามารถแลก token ได้',
+                    'no_token': 'ไม่พบ access token',
+                    'userinfo_failed': 'ไม่สามารถดึงข้อมูลผู้ใช้ได้',
+                    'no_email': 'ไม่พบอีเมลจาก SSO'
+                };
+                this.error = errorMessages[error] || 'เกิดข้อผิดพลาด: ' + error;
+            }
+        },
         
         async login() {
             this.loading = true;

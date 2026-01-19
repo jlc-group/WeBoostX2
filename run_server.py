@@ -20,11 +20,11 @@ if __name__ == "__main__":
     print("🚀 Starting FastAPI Server...")
     print("💡 Tip: กด Ctrl+C แล้ว F5 เพื่อ restart")
     print("=" * 60)
-    
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8205,
         reload=True,
         reload_dirs=["app"],
     )
