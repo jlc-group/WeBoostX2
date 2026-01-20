@@ -1,8 +1,8 @@
 # ================================
 # WeBoostX 2.0 - Cursor Rules
 # ================================
-# Version: 1.0
-# Last Updated: 2026-01-17
+# Version: 1.1
+# Last Updated: 2026-01-18
 # ================================
 
 ## 🎯 Project Overview
@@ -18,6 +18,32 @@ WeBoostX 2.0 เป็นระบบจัดการโฆษณา Multi-Pla
 
 ---
 
+## 🖥️ Server Infrastructure
+
+| Key | Value |
+|-----|-------|
+| **Server** | AI Brain Server (192.168.0.41) |
+| **Domain** | weboostx.jlcgroup.co |
+| **SSL** | Cloudflare (HTTPS) |
+| **Reverse Proxy** | Nginx |
+| **Process Manager** | PM2 / Uvicorn |
+
+### Folder Structure
+
+```
+D:\Server\
+├── apps\weboostx\           # SOURCE CODE (Development)
+├── deploy\weboostx\         # PRODUCTION (PM2 runs here)
+├── run\weboostx\            # Environment files
+│   ├── .env.dev             # Development settings
+│   └── .env.prod            # Production settings
+├── logs\weboostx\           # Log files
+└── nginx\conf\sites-enabled\
+    └── weboostx.jlcgroup.co.conf
+```
+
+---
+
 ## 🛠️ Tech Stack
 
 | Component | Technology |
@@ -26,7 +52,7 @@ WeBoostX 2.0 เป็นระบบจัดการโฆษณา Multi-Pla
 | Frontend | Jinja2 Templates, TailwindCSS, Alpine.js |
 | Database | PostgreSQL 18 |
 | ORM | SQLAlchemy |
-| Auth | JWT (python-jose) |
+| Auth | JWT (python-jose) + JLC SSO |
 | Task Queue | APScheduler |
 
 ---
@@ -41,10 +67,15 @@ apps/weboostx/
 │   ├── models/           # SQLAlchemy models
 │   ├── schemas/          # Pydantic schemas
 │   ├── services/         # Business logic
+│   │   ├── facebook/     # Facebook API services
+│   │   ├── tiktok_service.py
+│   │   └── tiktok_ads_service.py
 │   ├── tasks/            # Background tasks
 │   ├── templates/        # Jinja2 HTML templates
 │   └── static/           # Static files
 ├── scripts/              # Utility scripts
+├── docs/                 # Documentation
+│   └── TOKEN_USAGE_GUIDE.md  # API token usage guide
 ├── requirements.txt
 └── run.py
 ```
@@ -53,10 +84,10 @@ apps/weboostx/
 
 ## 🖥️ Ports
 
-| Environment | Port |
-|-------------|------|
-| Development | 8201 |
-| Production | 9201 |
+| Environment | Port | URL |
+|-------------|------|-----|
+| Development | 8201 | http://localhost:8201 |
+| Production | 9201 | https://weboostx.jlcgroup.co |
 
 ---
 
@@ -71,6 +102,11 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8201 --reload
 
 ### Production
 ```powershell
+# Option 1: ใช้ deploy script
+cd D:\Server
+.\scripts\deploy.ps1 -App weboostx
+
+# Option 2: รัน Uvicorn โดยตรง
 cd D:\Server\deploy\weboostx
 .\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 9201
 ```
@@ -79,13 +115,21 @@ cd D:\Server\deploy\weboostx
 
 ## 🔐 Environment Variables
 
-ดู config ที่: `D:\Server\run\weboostx\.env.dev` และ `.env.prod`
+| File | Location | Purpose |
+|------|----------|---------|
+| `.env.dev` | `D:\Server\run\weboostx\` | Development settings |
+| `.env.prod` | `D:\Server\run\weboostx\` | Production settings |
 
-Key variables:
+### Key Variables
 - `POSTGRES_*` - Database connection
 - `SECRET_KEY` - JWT secret
 - `TIKTOK_*` - TikTok API credentials
+- `FB_*` - Facebook API credentials
+- `SSO_*` - JLC SSO integration
 - `SCHEDULER_ENABLED` - Enable background tasks
+
+### API Token Usage
+ดูเอกสาร `docs/TOKEN_USAGE_GUIDE.md` สำหรับวิธีใช้ tokens
 
 ---
 
@@ -112,13 +156,26 @@ Key variables:
 
 ---
 
+## 🔗 Related Systems
+
+| System | URL | Purpose |
+|--------|-----|---------|
+| JLC SSO | sso.jlcgroup.co | Authentication |
+| PeopleOS | peopleos.jlcgroup.co | HR Platform |
+| NEXUS | nexus.jlcgroup.co | AI Control Center |
+| INFACTX | infactx.jlcgroup.co | CEO Dashboard |
+| Server Monitor | localhost:9999 | Infrastructure Dashboard |
+
+---
+
 ## ⚠️ Important Notes
 
 - **ห้าม commit** `.env` files
 - **ห้าม commit** credentials หรือ API keys
 - Production database: `weboostx_dev_db` (shared with dev)
 - TikTok API มี rate limits - ระวังการเรียก API ถี่เกินไป
+- Facebook API มี rate limits เช่นกัน
 
 ---
 
-*WeBoostX 2.0 | JLC Group IT*
+*WeBoostX 2.0 | JLC Group IT | AI Brain Server (192.168.0.41)*
