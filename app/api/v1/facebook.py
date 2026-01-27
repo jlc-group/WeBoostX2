@@ -14,7 +14,11 @@ from app.core.config import settings
 from app.models.content import Content
 from app.models.platform import AdAccount
 from app.models.enums import Platform
-from app.services.facebook.fb_sync import FacebookSyncService
+
+# Lazy import to avoid httpx dependency issues
+def get_sync_service(db):
+    from app.services.facebook.fb_sync import FacebookSyncService
+    return FacebookSyncService(db=db)
 
 router = APIRouter(prefix="/facebook", tags=["Facebook"])
 
@@ -217,7 +221,7 @@ async def sync_facebook_posts(
     Sync Facebook posts from a page to database.
     Runs in background for large syncs.
     """
-    sync_service = FacebookSyncService(db=db)
+    sync_service = get_sync_service(db)
 
     try:
         stats = await sync_service.sync_posts(
@@ -248,7 +252,7 @@ async def sync_facebook_videos(
     db: Session = Depends(get_db),
 ):
     """Sync Facebook video posts from a page"""
-    sync_service = FacebookSyncService(db=db)
+    sync_service = get_sync_service(db)
 
     try:
         stats = await sync_service.sync_video_posts(
@@ -276,7 +280,7 @@ async def sync_facebook_ad_accounts(
     db: Session = Depends(get_db),
 ):
     """Sync Facebook ad accounts to database"""
-    sync_service = FacebookSyncService(db=db)
+    sync_service = get_sync_service(db)
 
     try:
         accounts = await sync_service.sync_ad_accounts()

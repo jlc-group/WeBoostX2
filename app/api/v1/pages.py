@@ -255,6 +255,22 @@ async def dashboard_page(request: Request, db: Session = Depends(get_db)):
     })
 
 
+@router.get("/fb-dashboard", response_class=HTMLResponse)
+async def fb_dashboard_page(request: Request):
+    """Facebook Dashboard - Legacy DB"""
+    
+    class MockUser:
+        first_name = "Admin"
+        full_name = "Admin WeBoostX"
+        role = type('obj', (object,), {'value': 'admin'})()
+    
+    return templates.TemplateResponse("fb_dashboard.html", {
+        "request": request,
+        "current_user": MockUser(),
+        "active_page": "fb_dashboard"
+    })
+
+
 @router.get("/contents", response_class=HTMLResponse)
 async def contents_page(request: Request, db: Session = Depends(get_db)):
     """Contents list page (all platforms)"""
@@ -343,20 +359,31 @@ async def contents_tiktok_best_each_product_page(request: Request, db: Session =
 
 @router.get("/contents/facebook", response_class=HTMLResponse)
 async def contents_facebook_page(request: Request, db: Session = Depends(get_db)):
-    """Facebook Contents page"""
-    from app.models.enums import Platform
-    from sqlalchemy import func
-    
-    total_contents = db.query(Content).filter(
-        Content.platform == Platform.FACEBOOK,
-        Content.deleted_at.is_(None)
-    ).count()
-    
-    avg_fb_score = db.query(func.avg(Content.fb_score)).filter(
-        Content.platform == Platform.FACEBOOK,
-        Content.fb_score.isnot(None),
-        Content.deleted_at.is_(None)
-    ).scalar() or 0
+    """Facebook Contents page - reads from legacy facebook_posts_performance"""
+    # Import legacy mapper for reading from localhost:5433/postgres
+    try:
+        from app.services.facebook.fb_legacy_mapper import get_legacy_mapper
+        mapper = get_legacy_mapper()
+        summary = mapper.get_dashboard_summary()
+        
+        total_contents = summary.get('posts_count', 0)
+        avg_fb_score = 0  # Legacy DB doesn't have fb_score, we use pfm_score
+        
+        # Get average pfm_score from legacy DB
+        try:
+            avg_result = mapper.db.query_one("""
+                SELECT AVG(pfm_score) as avg_score 
+                FROM facebook_posts_performance 
+                WHERE pfm_score > 0
+            """)
+            avg_fb_score = float(avg_result['avg_score']) if avg_result and avg_result['avg_score'] else 0
+        except Exception:
+            avg_fb_score = 0
+            
+    except Exception as e:
+        print(f"[contents_facebook_page] Error loading from legacy DB: {e}")
+        total_contents = 0
+        avg_fb_score = 0
     
     class MockUser:
         first_name = "Admin"

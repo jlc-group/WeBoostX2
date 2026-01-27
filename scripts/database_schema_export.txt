@@ -1,0 +1,726 @@
+﻿====================================================================================================
+DATABASE SCHEMA EXPORT - Facebook Backend Database
+====================================================================================================
+
+📊 Total Tables: 25
+
+
+====================================================================================================
+TABLE: ad_sku_mapping (0 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+ad_id                          text                           NO         
+sku                            text                           NO         
+
+🔑 Primary Key: ad_id, sku
+
+🔗 Foreign Keys:
+   ad_id → facebook_ads.ad_id
+   sku → products.sku
+
+====================================================================================================
+TABLE: budget_daily_allocations (0 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             uuid                           NO         gen_random_uuid()
+objective_allocation_id        uuid                           NO         
+allocation_date                date                           NO         
+planned_budget                 numeric                        NO         
+actual_spend                   numeric                        NO         0
+variance                       numeric                        NO         0
+status                         character varying(20)          NO         'PLANNED'::character varying
+created_at                     timestamp with time zone       NO         CURRENT_TIMESTAMP
+updated_at                     timestamp with time zone       NO         CURRENT_TIMESTAMP
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   objective_allocation_id → budget_objective_allocations.id
+
+====================================================================================================
+TABLE: budget_objective_allocations (0 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             uuid                           NO         gen_random_uuid()
+sku_allocation_id              uuid                           NO         
+objective_type                 character varying(20)          NO         
+percentage                     numeric                        NO         
+allocated_budget               numeric                        NO         
+used_budget                    numeric                        NO         0
+created_at                     timestamp with time zone       NO         CURRENT_TIMESTAMP
+updated_at                     timestamp with time zone       NO         CURRENT_TIMESTAMP
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   sku_allocation_id → budget_sku_allocations.id
+
+====================================================================================================
+TABLE: budget_sku_allocations (0 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             uuid                           NO         gen_random_uuid()
+plan_id                        uuid                           NO         
+sku_code                       character varying(50)          NO         
+allocated_budget               numeric                        NO         
+used_budget                    numeric                        NO         0
+remaining_budget               numeric                        NO         0
+created_at                     timestamp with time zone       NO         CURRENT_TIMESTAMP
+updated_at                     timestamp with time zone       NO         CURRENT_TIMESTAMP
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   plan_id → monthly_budget_plans.id
+   sku_code → products.sku
+
+====================================================================================================
+TABLE: data_sync_jobs (0 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+job_id                         uuid                           NO         gen_random_uuid()
+job_type                       text                           NO         
+account_id                     text                           YES        
+status                         text                           YES        'pending'::text
+started_at                     timestamp with time zone       YES        
+completed_at                   timestamp with time zone       YES        
+error_message                  text                           YES        
+records_synced                 integer                        YES        0
+created_at                     timestamp with time zone       YES        now()
+updated_at                     timestamp with time zone       YES        now()
+last_cursor                    text                           YES        
+next_sync_at                   timestamp with time zone       YES        
+
+🔑 Primary Key: job_id
+
+====================================================================================================
+TABLE: facebook_ad_accounts (4 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             text                           NO         
+name                           text                           NO         
+currency                       text                           YES        
+account_status                 text                           YES        
+business_id                    text                           YES        
+created_at                     timestamp with time zone       YES        now()
+updated_at                     timestamp with time zone       YES        now()
+created_time                   timestamp with time zone       YES        
+updated_time                   timestamp with time zone       YES        
+account_id                     text                           YES        
+timezone_id                    integer                        YES        
+timezone_name                  text                           YES        
+business_name                  text                           YES        
+owner_id                       text                           YES        
+
+🔑 Primary Key: id
+
+====================================================================================================
+TABLE: facebook_ads (23,273 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+ad_id                          text                           NO         
+adset_id                       text                           YES        
+name                           text                           YES        
+status                         text                           YES        
+creative                       jsonb                          YES        
+preview_url                    text                           YES        
+post_id                        text                           YES        
+created_time                   timestamp with time zone       YES        
+updated_time                   timestamp with time zone       YES        
+created_at                     timestamp with time zone       YES        now()
+updated_at                     timestamp with time zone       YES        now()
+
+🔑 Primary Key: ad_id
+
+====================================================================================================
+TABLE: facebook_ads_insights (75,061 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             uuid                           NO         gen_random_uuid()
+ad_id                          text                           YES        
+adset_id                       text                           YES        
+campaign_id                    text                           YES        
+account_id                     text                           YES        
+impressions                    integer                        YES        0
+reach                          integer                        YES        0
+clicks                         integer                        YES        0
+spend                          numeric                        YES        0
+cpm                            numeric                        YES        0
+cpp                            numeric                        YES        0
+ctr                            numeric                        YES        0
+frequency                      numeric                        YES        0
+cost_per_result                numeric                        YES        0
+actions                        jsonb                          YES        
+action_values                  jsonb                          YES        
+video_actions                  jsonb                          YES        
+date_start                     date                           NO         
+date_stop                      date                           NO         
+created_at                     timestamp with time zone       YES        now()
+updated_at                     timestamp with time zone       YES        now()
+video_play_actions             jsonb                          YES        
+video_p25_watched_actions      jsonb                          YES        
+video_p50_watched_actions      jsonb                          YES        
+video_p75_watched_actions      jsonb                          YES        
+video_p95_watched_actions      jsonb                          YES        
+unique_clicks                  bigint                         YES        
+unique_ctr                     numeric                        YES        
+unique_link_clicks_ctr         numeric                        YES        
+cost_per_unique_click          numeric                        YES        
+cost_per_unique_inline_link_click numeric                        YES        
+attribution_setting            character varying(100)         YES        
+buying_type                    character varying(100)         YES        
+optimization_goal              character varying(100)         YES        
+conversions                    jsonb                          YES        
+conversion_values              jsonb                          YES        
+cost_per_conversion            jsonb                          YES        
+conversion_rate_ranking        character varying(50)          YES        
+quality_ranking                character varying(50)          YES        
+updated_time                   bigint                         YES        
+created_time_fb                bigint                         YES        
+cost_per_mille                 numeric                        YES        
+cost_per_click_calculated      numeric                        YES        
+click_through_rate             numeric                        YES        
+post_engagement_rate           numeric                        YES        
+video_completion_rate          numeric                        YES        
+lifetime_spend                 numeric                        YES        
+lifetime_impressions           bigint                         YES        
+lifetime_clicks                bigint                         YES        
+lifetime_reach                 bigint                         YES        
+lifetime_cost_per_result       numeric                        YES        
+estimated_ad_recall_lift_people integer                        YES        0
+cost_per_estimated_ad_recaller numeric                        YES        0
+lifetime_estimated_ad_recall_lift integer                        YES        0
+video_thruplay                 integer                        YES        0
+video_plays                    integer                        YES        0
+video_avg_watch_time           numeric                        YES        0
+video_p25_watched              integer                        YES        0
+video_p50_watched              integer                        YES        0
+video_p75_watched              integer                        YES        0
+video_p100_watched             integer                        YES        0
+lifetime_video_thruplay        integer                        YES        0
+post_saves                     integer                        YES        0
+cost_per_action_type           jsonb                          YES        
+results                        integer                        YES        0
+results_indicator              character varying(100)         YES        
+ad_name                        text                           YES        
+sku_codes                      jsonb                          YES        
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   account_id → facebook_ad_accounts.id
+   ad_id → facebook_ads.ad_id
+
+Unique Constraints: ad_id, date_start, date_stop
+
+====================================================================================================
+TABLE: facebook_adsets (1,691 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+adset_id                       text                           NO         
+campaign_id                    text                           YES        
+name                           text                           YES        
+status                         text                           YES        
+daily_budget                   bigint                         YES        
+lifetime_budget                bigint                         YES        
+start_time                     timestamp with time zone       YES        
+end_time                       timestamp with time zone       YES        
+targeting                      jsonb                          YES        
+created_time                   timestamp with time zone       YES        
+updated_time                   timestamp with time zone       YES        
+created_at                     timestamp with time zone       YES        now()
+updated_at                     timestamp with time zone       YES        now()
+
+🔑 Primary Key: adset_id
+
+🔗 Foreign Keys:
+   campaign_id → facebook_campaigns.campaign_id
+
+====================================================================================================
+TABLE: facebook_campaigns (268 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+campaign_id                    text                           NO         
+account_id                     text                           YES        
+name                           text                           YES        
+objective                      text                           YES        
+status                         text                           YES        
+daily_budget                   bigint                         YES        
+lifetime_budget                bigint                         YES        
+start_time                     timestamp with time zone       YES        
+stop_time                      timestamp with time zone       YES        
+created_time                   timestamp with time zone       YES        
+updated_time                   timestamp with time zone       YES        
+created_at                     timestamp with time zone       YES        now()
+updated_at                     timestamp with time zone       YES        now()
+
+🔑 Primary Key: campaign_id
+
+🔗 Foreign Keys:
+   account_id → facebook_ad_accounts.id
+
+====================================================================================================
+TABLE: facebook_pages (2 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             text                           NO         
+name                           text                           NO         
+category                       text                           YES        
+access_token                   text                           YES        
+picture_url                    text                           YES        
+cover_photo_url                text                           YES        
+likes                          integer                        YES        0
+followers_count                integer                        YES        0
+created_at                     timestamp with time zone       YES        now()
+updated_at                     timestamp with time zone       YES        now()
+
+🔑 Primary Key: id
+
+====================================================================================================
+TABLE: facebook_post_attachments (10,097 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             uuid                           NO         gen_random_uuid()
+post_id                        text                           YES        
+type                           text                           YES        
+media_url                      text                           YES        
+thumbnail_url                  text                           YES        
+description                    text                           YES        
+title                          text                           YES        
+created_at                     timestamp with time zone       YES        now()
+local_media_id                 uuid                           YES        
+local_thumbnail_id             uuid                           YES        
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   post_id → facebook_posts.id
+
+====================================================================================================
+TABLE: facebook_post_insights (107,198 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             uuid                           NO         gen_random_uuid()
+post_id                        text                           YES        
+metric_name                    text                           NO         
+value                          numeric                        YES        0
+date_recorded                  date                           NO         
+created_at                     timestamp with time zone       YES        now()
+value_json                     jsonb                          YES        
+value_numeric                  numeric                        YES        
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   post_id → facebook_posts.id
+
+====================================================================================================
+TABLE: facebook_post_product_mapping (0 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             integer                        NO         nextval('facebook_post_product
+post_id                        character varying(50)          NO         
+product_sku                    character varying(50)          NO         
+is_primary                     boolean                        YES        false
+relevance_score                integer                        YES        5
+mapped_by                      character varying(100)         YES        
+mapped_at                      timestamp without time zone    YES        CURRENT_TIMESTAMP
+notes                          text                           YES        
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   post_id → facebook_posts.id
+   product_sku → products.sku
+
+Unique Constraints: post_id, product_sku
+
+====================================================================================================
+TABLE: facebook_posts (3,625 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             text                           NO         
+page_id                        text                           YES        
+message                        text                           YES        
+story                          text                           YES        
+type                           text                           YES        
+permalink_url                  text                           YES        
+picture_url                    text                           YES        
+full_picture_url               text                           YES        
+video_url                      text                           YES        
+source                         text                           YES        
+status_type                    text                           YES        
+created_time                   timestamp with time zone       YES        
+updated_time                   timestamp with time zone       YES        
+is_published                   boolean                        YES        true
+is_hidden                      boolean                        YES        false
+created_at                     timestamp with time zone       YES        now()
+updated_at                     timestamp with time zone       YES        now()
+local_picture_id               uuid                           YES        
+local_full_picture_id          uuid                           YES        
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   page_id → facebook_pages.id
+
+====================================================================================================
+TABLE: facebook_posts_performance (3,209 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             integer                        NO         nextval('facebook_posts_perfor
+post_id                        character varying(50)          NO         
+channel_acc_id                 character varying(50)          NO         
+post_type                      character varying(50)          YES        
+url                            text                           YES        
+caption                        text                           YES        
+thumbnail_url                  text                           YES        
+local_thumbnail_id             uuid                           YES        
+video_duration                 integer                        YES        
+video_views                    bigint                         YES        0
+total_time_watched             bigint                         YES        0
+average_time_watched           integer                        YES        0
+impressions                    bigint                         YES        0
+impressions_unique             bigint                         YES        0
+reach                          bigint                         YES        0
+clicks                         bigint                         YES        0
+likes                          bigint                         YES        0
+comments                       bigint                         YES        0
+shares                         bigint                         YES        0
+reactions                      jsonb                          YES        
+pfm_score                      numeric                        YES        0
+engagement_rate                numeric                        YES        0
+ctr                            numeric                        YES        0
+products                       ARRAY                          YES        
+primary_product_sku            character varying(50)          YES        
+ads_details                    jsonb                          YES        
+ads_total_media_cost           numeric                        YES        0
+ads_count                      integer                        YES        0
+campaign_details               jsonb                          YES        
+targeting_details              jsonb                          YES        
+content_type                   character varying(50)          YES        
+content_status                 character varying(20)          YES        
+boost_created_by               character varying(100)         YES        
+boost_factor                   numeric                        YES        1.0
+boost_start_date               date                           YES        
+boost_expire_date              date                           YES        
+boost_reason                   text                           YES        
+create_time                    timestamp without time zone    YES        
+update_time                    timestamp without time zone    YES        
+last_sync_at                   timestamp without time zone    YES        CURRENT_TIMESTAMP
+created_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+updated_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+performance_score              numeric                        YES        0
+ads_avg_cost_per_result        numeric                        YES        
+ads_cost_per_result_breakdown  jsonb                          YES        
+total_post_saves               bigint                         YES        0
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   local_thumbnail_id → media_storage.id
+   channel_acc_id → facebook_pages.id
+
+Unique Constraints: post_id
+
+====================================================================================================
+TABLE: facebook_posts_performance_log (0 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             integer                        NO         nextval('facebook_posts_perfor
+post_id                        character varying(50)          NO         
+calculation_date               date                           NO         
+pfm_score                      numeric                        YES        
+calculation_details            jsonb                          YES        
+calculated_by                  character varying(50)          YES        'system'::character varying
+created_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   post_id → facebook_posts.id
+
+Unique Constraints: post_id, calculation_date
+
+====================================================================================================
+TABLE: facebook_reels_insights (2,219 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             character varying(255)         NO         
+video_id                       character varying(255)         NO         
+date_start                     date                           YES        
+date_stop                      date                           YES        
+blue_reels_play_count          bigint                         YES        0
+fb_reels_replay_count          bigint                         YES        0
+fb_reels_total_plays           bigint                         YES        0
+post_impressions_unique        bigint                         YES        0
+post_video_avg_time_watched    numeric                        YES        0
+post_video_followers           bigint                         YES        0
+post_video_likes_by_reaction_type text                           YES        
+post_video_social_actions      text                           YES        
+post_video_view_time           bigint                         YES        0
+post_video_retention_graph     text                           YES        
+calculated_engagement_rate     numeric                        YES        0
+calculated_replay_rate         numeric                        YES        0
+created_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+updated_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+sync_at                        timestamp without time zone    YES        CURRENT_TIMESTAMP
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   video_id → facebook_video_posts.video_id
+
+Unique Constraints: video_id, date_start, date_stop
+
+====================================================================================================
+TABLE: facebook_video_insights (944 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             character varying(255)         NO         
+video_id                       character varying(255)         NO         
+date_start                     date                           YES        
+date_stop                      date                           YES        
+total_video_views              bigint                         YES        0
+total_video_views_unique       bigint                         YES        0
+total_video_complete_views     bigint                         YES        0
+total_video_complete_views_unique bigint                         YES        0
+total_video_impressions        bigint                         YES        0
+total_video_impressions_unique bigint                         YES        0
+total_video_avg_time_watched   numeric                        YES        0
+total_video_view_total_time    bigint                         YES        0
+total_video_10s_views          bigint                         YES        0
+total_video_10s_views_unique   bigint                         YES        0
+total_video_15s_views          bigint                         YES        0
+total_video_30s_views          bigint                         YES        0
+total_video_views_autoplayed   bigint                         YES        0
+total_video_views_clicked_to_play bigint                         YES        0
+total_video_views_organic      bigint                         YES        0
+total_video_views_paid         bigint                         YES        0
+total_video_reactions_by_type_total text                           YES        
+total_video_stories_by_action_type text                           YES        
+created_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+updated_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+sync_at                        timestamp without time zone    YES        CURRENT_TIMESTAMP
+
+🔑 Primary Key: id
+
+🔗 Foreign Keys:
+   video_id → facebook_video_posts.video_id
+
+Unique Constraints: video_id, date_start, date_stop
+
+====================================================================================================
+TABLE: facebook_video_posts (786 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+video_id                       character varying(32)          NO         
+post_id                        character varying(32)          YES        
+page_id                        character varying(32)          YES        
+created_time                   timestamp without time zone    YES        
+permalink_url                  text                           YES        
+source                         text                           YES        
+length                         double precision               YES        
+title                          text                           YES        
+description                    text                           YES        
+created_at                     timestamp without time zone    YES        now()
+updated_at                     timestamp without time zone    YES        now()
+picture                        text                           YES        
+video_type                     character varying(20)          YES        'video'::character varying
+local_picture_id               uuid                           YES        
+
+🔑 Primary Key: video_id
+
+====================================================================================================
+TABLE: facebook_video_promoted_posts (439 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+video_id                       text                           NO         
+promoted_post_id               text                           NO         
+page_id                        text                           NO         
+created_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+updated_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+ad_id                          character varying(255)         YES        
+
+🔑 Primary Key: video_id, promoted_post_id
+
+====================================================================================================
+TABLE: media_storage (1,640 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             uuid                           NO         gen_random_uuid()
+original_url                   text                           NO         
+local_filename                 text                           NO         
+local_path                     text                           NO         
+public_url                     text                           YES        
+file_size                      bigint                         YES        
+mime_type                      text                           YES        
+width                          integer                        YES        
+height                         integer                        YES        
+download_status                text                           YES        'pending'::text
+error_message                  text                           YES        
+downloaded_at                  timestamp with time zone       YES        
+created_at                     timestamp with time zone       YES        CURRENT_TIMESTAMP
+updated_at                     timestamp with time zone       YES        CURRENT_TIMESTAMP
+file_data                      bytea                          YES        
+content_type                   character varying(100)         YES        
+is_stored_in_db                boolean                        YES        false
+source_post_id                 character varying(255)         YES        
+source_type                    character varying(50)          YES        
+media_category                 character varying(50)          YES        
+metadata                       jsonb                          YES        
+binary_data                    bytea                          YES        
+
+🔑 Primary Key: id
+
+====================================================================================================
+TABLE: monthly_budget_plans (0 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             uuid                           NO         gen_random_uuid()
+plan_name                      character varying(100)         NO         
+month_year                     character varying(7)           NO         
+total_budget                   numeric                        NO         
+period_start                   date                           NO         
+period_end                     date                           NO         
+remaining_budget               numeric                        NO         0
+status                         character varying(20)          NO         'DRAFT'::character varying
+created_by                     character varying(100)         YES        
+created_at                     timestamp with time zone       NO         CURRENT_TIMESTAMP
+updated_at                     timestamp with time zone       NO         CURRENT_TIMESTAMP
+
+🔑 Primary Key: id
+
+====================================================================================================
+TABLE: products (61 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+sku                            text                           NO         
+name                           text                           YES        
+status                         text                           YES        'active'::text
+allocate_status                boolean                        NO         false
+created_at                     timestamp with time zone       YES        CURRENT_TIMESTAMP
+
+🔑 Primary Key: sku
+
+====================================================================================================
+TABLE: sales_out (10,418 rows)
+====================================================================================================
+
+Column Name                    Type                           Nullable   Default
+------------------------------ ------------------------------ ---------- ------------------------------
+id                             integer                        NO         nextval('sales_out_id_seq'::re
+sale_date                      date                           NO         
+distributor_code               character varying(50)          YES        
+distributor_name               character varying(255)         YES        
+customer_name                  character varying(255)         YES        
+product_code                   character varying(100)         YES        
+product_name                   text                           YES        
+pack_type_name                 character varying(100)         YES        
+sale_quantity                  integer                        YES        0
+sku_code                       character varying(100)         YES        
+unit_price                     numeric                        YES        0
+grand_sale                     numeric                        YES        0
+created_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+updated_at                     timestamp without time zone    YES        CURRENT_TIMESTAMP
+sku_code_jlc                   character varying(50)          YES        
+
+🔑 Primary Key: id
+
+Unique Constraints: sale_date, distributor_code, product_code, customer_name
+
+
+====================================================================================================
+SUMMARY
+====================================================================================================
+
+📱 Facebook Posts/Videos: 10
+   - facebook_post_attachments
+   - facebook_post_insights
+   - facebook_post_product_mapping
+   - facebook_posts
+   - facebook_posts_performance
+   - facebook_posts_performance_log
+   - facebook_reels_insights
+   - facebook_video_insights
+   - facebook_video_posts
+   - facebook_video_promoted_posts
+
+💰 Facebook Ads: 4
+   - facebook_ad_accounts
+   - facebook_ads
+   - facebook_ads_insights
+   - facebook_adsets
+
+📊 Insights: 4
+   - facebook_ads_insights
+   - facebook_post_insights
+   - facebook_reels_insights
+   - facebook_video_insights
+
+🎯 Campaigns/AdSets: 2
+   - facebook_adsets
+   - facebook_campaigns
+
+🗂️  Other Tables: 9
+   - ad_sku_mapping
+   - budget_daily_allocations
+   - budget_objective_allocations
+   - budget_sku_allocations
+   - data_sync_jobs
+   - media_storage
+   - monthly_budget_plans
+   - products
+   - sales_out
+
+📦 Total: 25 tables
+
+✅ Schema export complete!

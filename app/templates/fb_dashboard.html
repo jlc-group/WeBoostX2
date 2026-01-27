@@ -1,0 +1,388 @@
+{% extends "layouts/app.html" %}
+
+{% block title %}Facebook Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Facebook Dashboard</h1>
+            <p class="text-muted mb-0">Overview of Facebook Pages, Posts, and Ads</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-primary" onclick="refreshData()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4" id="summary-cards">
+        <div class="col-6 col-md-3">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-subtitle mb-2 opacity-75">Pages</h6>
+                            <h2 class="card-title mb-0" id="pages-count">-</h2>
+                        </div>
+                        <div class="fs-1 opacity-50"><i class="bi bi-facebook"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-subtitle mb-2 opacity-75">Posts</h6>
+                            <h2 class="card-title mb-0" id="posts-count">-</h2>
+                        </div>
+                        <div class="fs-1 opacity-50"><i class="bi bi-file-post"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-subtitle mb-2 opacity-75">Videos</h6>
+                            <h2 class="card-title mb-0" id="videos-count">-</h2>
+                        </div>
+                        <div class="fs-1 opacity-50"><i class="bi bi-play-circle"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card bg-warning text-dark h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-subtitle mb-2 opacity-75">Campaigns</h6>
+                            <h2 class="card-title mb-0" id="campaigns-count">-</h2>
+                        </div>
+                        <div class="fs-1 opacity-50"><i class="bi bi-megaphone"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Second Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Ad Sets</h6>
+                    <h3 class="card-title mb-0" id="adsets-count">-</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Ads</h6>
+                    <h3 class="card-title mb-0" id="ads-count">-</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Products</h6>
+                    <h3 class="card-title mb-0" id="products-count">-</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card bg-danger text-white h-100">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 opacity-75">Total Spend</h6>
+                    <h3 class="card-title mb-0" id="total-spend">-</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pages Section -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-facebook me-2"></i>Facebook Pages</h5>
+                </div>
+                <div class="card-body" id="pages-list">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-trophy me-2"></i>Top Performing Posts</h5>
+                </div>
+                <div class="card-body" id="top-posts-list">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Posts -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Posts</h5>
+            <a href="/contents/facebook" class="btn btn-sm btn-outline-primary">View All</a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="recent-posts-table">
+                    <thead>
+                        <tr>
+                            <th>Page</th>
+                            <th>Message</th>
+                            <th>Type</th>
+                            <th>Created</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-posts-body">
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Campaigns Performance -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Campaigns Performance (Top 10 by Spend)</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Campaign</th>
+                            <th>Status</th>
+                            <th>Objective</th>
+                            <th class="text-end">Ad Sets</th>
+                            <th class="text-end">Ads</th>
+                            <th class="text-end">Spend</th>
+                            <th class="text-end">Impressions</th>
+                            <th class="text-end">Clicks</th>
+                        </tr>
+                    </thead>
+                    <tbody id="campaigns-body">
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = '/api/v1/fb-dashboard';
+
+function formatNumber(num) {
+    if (num === null || num === undefined) return '-';
+    return new Intl.NumberFormat('th-TH').format(num);
+}
+
+function formatCurrency(num) {
+    if (num === null || num === undefined) return '-';
+    return new Intl.NumberFormat('th-TH', { 
+        style: 'currency', 
+        currency: 'THB',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(num);
+}
+
+function truncate(str, len = 50) {
+    if (!str) return '-';
+    return str.length > len ? str.substring(0, len) + '...' : str;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('th-TH', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+async function loadSummary() {
+    try {
+        const res = await fetch(`${API_BASE}/summary`);
+        const data = await res.json();
+        
+        document.getElementById('pages-count').textContent = formatNumber(data.pages_count);
+        document.getElementById('posts-count').textContent = formatNumber(data.posts_count);
+        document.getElementById('videos-count').textContent = formatNumber(data.videos_count);
+        document.getElementById('campaigns-count').textContent = formatNumber(data.campaigns_count);
+        document.getElementById('adsets-count').textContent = formatNumber(data.adsets_count);
+        document.getElementById('ads-count').textContent = formatNumber(data.ads_count);
+        document.getElementById('products-count').textContent = formatNumber(data.products_count);
+        document.getElementById('total-spend').textContent = formatCurrency(data.total_spend);
+    } catch (e) {
+        console.error('Error loading summary:', e);
+    }
+}
+
+async function loadPages() {
+    try {
+        const res = await fetch(`${API_BASE}/pages`);
+        const data = await res.json();
+        
+        const container = document.getElementById('pages-list');
+        if (data.data && data.data.length > 0) {
+            container.innerHTML = data.data.map(page => `
+                <div class="d-flex align-items-center mb-3 p-2 border rounded">
+                    <img src="${page.picture_url || '/static/placeholder.svg'}" 
+                         class="rounded-circle me-3" width="48" height="48" 
+                         onerror="this.src='/static/placeholder.svg'">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-0">${page.name}</h6>
+                        <small class="text-muted">${page.category || 'Page'}</small>
+                    </div>
+                    <div class="text-end">
+                        <div><strong>${formatNumber(page.followers_count)}</strong></div>
+                        <small class="text-muted">Followers</small>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = '<p class="text-muted text-center">No pages found</p>';
+        }
+    } catch (e) {
+        console.error('Error loading pages:', e);
+        document.getElementById('pages-list').innerHTML = '<p class="text-danger">Error loading pages</p>';
+    }
+}
+
+async function loadTopPosts() {
+    try {
+        const res = await fetch(`${API_BASE}/posts/top/performance?limit=5`);
+        const data = await res.json();
+        
+        const container = document.getElementById('top-posts-list');
+        if (data.data && data.data.length > 0) {
+            container.innerHTML = data.data.map((post, i) => `
+                <div class="d-flex align-items-start mb-3 p-2 border rounded">
+                    <div class="me-3 text-center" style="min-width: 30px;">
+                        <span class="badge bg-${i < 3 ? 'warning' : 'secondary'}">#${i + 1}</span>
+                    </div>
+                    <div class="flex-grow-1">
+                        <p class="mb-1 small">${truncate(post.message, 60)}</p>
+                        <small class="text-muted">Score: ${parseFloat(post.performance_score || 0).toFixed(2)}</small>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted">Ads Cost</small>
+                        <div><strong>${formatCurrency(post.ads_total_cost)}</strong></div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = '<p class="text-muted text-center">No performance data</p>';
+        }
+    } catch (e) {
+        console.error('Error loading top posts:', e);
+        document.getElementById('top-posts-list').innerHTML = '<p class="text-danger">Error loading posts</p>';
+    }
+}
+
+async function loadRecentPosts() {
+    try {
+        const res = await fetch(`${API_BASE}/posts/recent?limit=10`);
+        const data = await res.json();
+        
+        const tbody = document.getElementById('recent-posts-body');
+        if (data.data && data.data.length > 0) {
+            tbody.innerHTML = data.data.map(post => `
+                <tr>
+                    <td><small>${post.page_name || post.page_id}</small></td>
+                    <td>${truncate(post.message, 50)}</td>
+                    <td><span class="badge bg-secondary">${post.type || '-'}</span></td>
+                    <td><small>${formatDate(post.created_time)}</small></td>
+                    <td>
+                        <a href="${post.permalink_url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No posts found</td></tr>';
+        }
+    } catch (e) {
+        console.error('Error loading recent posts:', e);
+        document.getElementById('recent-posts-body').innerHTML = 
+            '<tr><td colspan="5" class="text-center text-danger">Error loading posts</td></tr>';
+    }
+}
+
+async function loadCampaigns() {
+    try {
+        const res = await fetch(`${API_BASE}/campaigns/performance`);
+        const data = await res.json();
+        
+        const tbody = document.getElementById('campaigns-body');
+        if (data.data && data.data.length > 0) {
+            tbody.innerHTML = data.data.slice(0, 10).map(camp => `
+                <tr>
+                    <td>${truncate(camp.name, 40)}</td>
+                    <td><span class="badge bg-${camp.status === 'ACTIVE' ? 'success' : 'secondary'}">${camp.status || '-'}</span></td>
+                    <td><small>${camp.objective || '-'}</small></td>
+                    <td class="text-end">${formatNumber(camp.adsets_count)}</td>
+                    <td class="text-end">${formatNumber(camp.ads_count)}</td>
+                    <td class="text-end"><strong>${formatCurrency(camp.total_spend)}</strong></td>
+                    <td class="text-end">${formatNumber(camp.total_impressions)}</td>
+                    <td class="text-end">${formatNumber(camp.total_clicks)}</td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No campaigns found</td></tr>';
+        }
+    } catch (e) {
+        console.error('Error loading campaigns:', e);
+        document.getElementById('campaigns-body').innerHTML = 
+            '<tr><td colspan="8" class="text-center text-danger">Error loading campaigns</td></tr>';
+    }
+}
+
+function refreshData() {
+    loadSummary();
+    loadPages();
+    loadTopPosts();
+    loadRecentPosts();
+    loadCampaigns();
+}
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', refreshData);
+</script>
+{% endblock %}

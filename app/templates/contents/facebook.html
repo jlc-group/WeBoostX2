@@ -140,14 +140,17 @@
                 <thead class="bg-gray-50 border-b border-gray-100">
                     <tr>
                         <th class="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Content</th>
-                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Impressions</th>
-                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reach</th>
-                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Likes</th>
-                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Comments</th>
-                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Shares</th>
-                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Score</th>
-                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Posted</th>
-                        <th class="text-center px-4 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Impressions</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reach</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Likes</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Comments</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Shares</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Saves</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Score</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ad Cost</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">CPR</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Posted</th>
+                        <th class="text-center px-3 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -156,19 +159,21 @@
                             <!-- Content Info -->
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-4">
-                                    <!-- Thumbnail -->
-                                    <div class="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
+                                    <!-- Thumbnail - Clickable to view on Facebook -->
+                                    <a :href="content.url" target="_blank" 
+                                       class="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0 block hover:ring-2 hover:ring-blue-400 transition-all cursor-pointer"
+                                       title="View on Facebook">
                                         <template x-if="content.thumbnail_url">
                                             <img :src="content.thumbnail_url" class="w-full h-full object-cover" :alt="content.caption">
                                         </template>
                                         <template x-if="!content.thumbnail_url">
-                                            <div class="w-full h-full flex items-center justify-center">
-                                                <svg class="w-8 h-8 text-gray-300" viewBox="0 0 24 24" fill="currentColor">
+                                            <div class="w-full h-full flex items-center justify-center bg-blue-50">
+                                                <svg class="w-8 h-8 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
                                                     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                                                 </svg>
                                             </div>
                                         </template>
-                                    </div>
+                                    </a>
                                     <!-- Caption -->
                                     <div class="min-w-0 flex-1">
                                         <p class="text-sm text-gray-800 line-clamp-2" x-text="content.caption || 'No caption'"></p>
@@ -178,26 +183,29 @@
                             </td>
 
                             <!-- Metrics -->
-                            <td class="px-4 py-4 text-center">
+                            <td class="px-3 py-4 text-center">
                                 <span class="font-semibold text-gray-800" x-text="formatNumber(content.impressions)"></span>
                             </td>
-                            <td class="px-4 py-4 text-center">
+                            <td class="px-3 py-4 text-center">
                                 <span class="font-semibold text-gray-800" x-text="formatNumber(content.reach)"></span>
                             </td>
-                            <td class="px-4 py-4 text-center">
+                            <td class="px-3 py-4 text-center">
                                 <span class="text-gray-600" x-text="formatNumber(content.likes)"></span>
                             </td>
-                            <td class="px-4 py-4 text-center">
+                            <td class="px-3 py-4 text-center">
                                 <span class="text-gray-600" x-text="formatNumber(content.comments)"></span>
                             </td>
-                            <td class="px-4 py-4 text-center">
+                            <td class="px-3 py-4 text-center">
                                 <span class="text-gray-600" x-text="formatNumber(content.shares)"></span>
+                            </td>
+                            <td class="px-3 py-4 text-center">
+                                <span class="text-gray-600" x-text="formatNumber(content.saves)"></span>
                             </td>
 
                             <!-- Score -->
-                            <td class="px-4 py-4 text-center">
+                            <td class="px-3 py-4 text-center">
                                 <template x-if="content.fb_score">
-                                    <span class="px-2.5 py-1 rounded-lg text-sm font-semibold"
+                                    <span class="px-2 py-1 rounded-lg text-sm font-semibold"
                                           :class="content.fb_score >= 7 ? 'bg-green-100 text-green-700' : content.fb_score >= 4 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'"
                                           x-text="content.fb_score.toFixed(1)"></span>
                                 </template>
@@ -206,18 +214,68 @@
                                 </template>
                             </td>
 
+                            <!-- Ad Cost -->
+                            <td class="px-3 py-4 text-center">
+                                <template x-if="content.ads_total_cost > 0">
+                                    <span class="text-blue-600 font-medium" x-text="'฿' + formatNumberFull(content.ads_total_cost)"></span>
+                                </template>
+                                <template x-if="!content.ads_total_cost || content.ads_total_cost == 0">
+                                    <span class="text-gray-400">-</span>
+                                </template>
+                            </td>
+
+                            <!-- Cost Per Result (AW/EG) -->
+                            <td class="px-3 py-4 text-center">
+                                <div class="flex flex-col gap-0.5">
+                                    <template x-if="content.cpr_aw">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span class="text-xs text-blue-500 font-medium">AW:</span>
+                                            <span class="text-blue-600 font-medium text-sm" x-text="'฿' + content.cpr_aw.cpr.toFixed(2)"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="content.cpr_eg">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span class="text-xs text-purple-500 font-medium">EG:</span>
+                                            <span class="text-purple-600 font-medium text-sm" x-text="'฿' + content.cpr_eg.cpr.toFixed(2)"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="!content.cpr_aw && !content.cpr_eg">
+                                        <span class="text-gray-400">-</span>
+                                    </template>
+                                </div>
+                            </td>
+
                             <!-- Date -->
                             <td class="px-4 py-4 text-center">
                                 <span class="text-sm text-gray-500" x-text="formatDate(content.platform_created_at)"></span>
                             </td>
 
                             <!-- Actions -->
-                            <td class="px-4 py-4 text-center">
-                                <div class="flex items-center justify-center gap-2">
+                            <td class="px-3 py-4 text-center">
+                                <div class="flex items-center justify-center gap-1">
+                                    <!-- View Ads Detail (only show if has ads) -->
+                                    <template x-if="content.ads_count > 0">
+                                        <button @click="showAdsModal(content)"
+                                                class="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                                :title="'View ' + content.ads_count + ' Ads'">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                            </svg>
+                                        </button>
+                                    </template>
+                                    <!-- Copy Link -->
+                                    <button @click="copyToClipboard(content.url)"
+                                            class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                            title="Copy Link">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                                        </svg>
+                                    </button>
+                                    <!-- Open in new tab -->
                                     <a :href="content.url" target="_blank"
-                                       class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                       title="View on Facebook">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                       class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                       title="Open in Facebook">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
                                         </svg>
                                     </a>
@@ -326,6 +384,175 @@
         </div>
     </div>
 
+    <!-- Ads Detail Modal -->
+    <div x-show="showAdsDetailModal" x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:leave="transition ease-in duration-200">
+        <div class="min-h-screen px-4 py-8 flex items-start justify-center">
+            <!-- Backdrop -->
+            <div class="fixed inset-0 bg-black/50" @click="showAdsDetailModal = false"></div>
+
+            <!-- Modal -->
+            <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6 my-8">
+                <!-- Header -->
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800">Ads Insights</h3>
+                        <p class="text-sm text-gray-500 mt-1" x-text="selectedPostCaption"></p>
+                    </div>
+                    <button @click="showAdsDetailModal = false" class="p-2 hover:bg-gray-100 rounded-lg">
+                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Summary Stats -->
+                <div class="grid grid-cols-5 gap-4 mb-6">
+                    <div class="bg-blue-50 rounded-xl p-4">
+                        <p class="text-sm text-blue-600 font-medium">Total Ads</p>
+                        <p class="text-2xl font-bold text-blue-800" x-text="selectedAdsData.ads_count || 0"></p>
+                    </div>
+                    <div class="bg-green-50 rounded-xl p-4">
+                        <p class="text-sm text-green-600 font-medium">Total Spend</p>
+                        <p class="text-2xl font-bold text-green-800" x-text="'฿' + formatNumberFull(selectedAdsData.total_spend || 0)"></p>
+                    </div>
+                    <div class="bg-purple-50 rounded-xl p-4">
+                        <p class="text-sm text-purple-600 font-medium">Total Reach</p>
+                        <p class="text-2xl font-bold text-purple-800" x-text="formatNumberFull(totalAdsReach)"></p>
+                    </div>
+                    <div class="bg-orange-50 rounded-xl p-4">
+                        <p class="text-sm text-orange-600 font-medium">Total Results</p>
+                        <p class="text-2xl font-bold text-orange-800" 
+                           x-text="(selectedAdsData.ads_summary || []).reduce((sum, ad) => sum + (ad.total_results || 0), 0).toLocaleString()"></p>
+                    </div>
+                    <div class="bg-pink-50 rounded-xl p-4">
+                        <p class="text-sm text-pink-600 font-medium">Avg CPR</p>
+                        <p class="text-2xl font-bold text-pink-800" 
+                           x-text="(() => {
+                               const ads = selectedAdsData.ads_summary || [];
+                               const totalSpend = ads.reduce((sum, ad) => sum + (ad.spend || 0), 0);
+                               const totalResults = ads.reduce((sum, ad) => sum + (ad.total_results || 0), 0);
+                               return '฿' + (totalResults > 0 ? (totalSpend / totalResults).toFixed(2) : '0.00');
+                           })()"></p>
+                    </div>
+                </div>
+                
+                <!-- CPR by Objective -->
+                <div x-show="selectedAdsData.cpr_breakdown" class="grid grid-cols-2 gap-4 mb-6">
+                    <template x-if="selectedAdsData.cpr_breakdown && selectedAdsData.cpr_breakdown.OUTCOME_AWARENESS">
+                        <div class="bg-blue-100 rounded-xl p-4 border border-blue-200">
+                            <p class="text-sm text-blue-700 font-semibold mb-2">AWARENESS (AW)</p>
+                            <div class="grid grid-cols-3 gap-2 text-sm">
+                                <div>
+                                    <p class="text-blue-600">Spend</p>
+                                    <p class="font-bold text-blue-800" x-text="'฿' + formatNumberFull(selectedAdsData.cpr_breakdown.OUTCOME_AWARENESS.total_spend || 0)"></p>
+                                </div>
+                                <div>
+                                    <p class="text-blue-600">Results</p>
+                                    <p class="font-bold text-blue-800" x-text="formatNumberFull(selectedAdsData.cpr_breakdown.OUTCOME_AWARENESS.total_results || 0)"></p>
+                                </div>
+                                <div>
+                                    <p class="text-blue-600">CPR</p>
+                                    <p class="font-bold text-blue-800" x-text="'฿' + calculateCPR(selectedAdsData.cpr_breakdown.OUTCOME_AWARENESS)"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="selectedAdsData.cpr_breakdown && selectedAdsData.cpr_breakdown.OUTCOME_ENGAGEMENT">
+                        <div class="bg-purple-100 rounded-xl p-4 border border-purple-200">
+                            <p class="text-sm text-purple-700 font-semibold mb-2">ENGAGEMENT (EG)</p>
+                            <div class="grid grid-cols-3 gap-2 text-sm">
+                                <div>
+                                    <p class="text-purple-600">Spend</p>
+                                    <p class="font-bold text-purple-800" x-text="'฿' + formatNumberFull(selectedAdsData.cpr_breakdown.OUTCOME_ENGAGEMENT.total_spend || 0)"></p>
+                                </div>
+                                <div>
+                                    <p class="text-purple-600">Results</p>
+                                    <p class="font-bold text-purple-800" x-text="formatNumberFull(selectedAdsData.cpr_breakdown.OUTCOME_ENGAGEMENT.total_results || 0)"></p>
+                                </div>
+                                <div>
+                                    <p class="text-purple-600">CPR</p>
+                                    <p class="font-bold text-purple-800" x-text="'฿' + calculateCPR(selectedAdsData.cpr_breakdown.OUTCOME_ENGAGEMENT)"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Loading State -->
+                <div x-show="loadingAds" class="flex items-center justify-center py-8">
+                    <svg class="animate-spin w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+
+                <!-- Ads List -->
+                <div x-show="!loadingAds" class="space-y-4 max-h-96 overflow-y-auto">
+                    <template x-for="(ad, index) in selectedAdsData.ads_summary || []" :key="ad.ad_id || index">
+                        <div class="border border-gray-200 rounded-xl p-4 hover:bg-gray-50">
+                            <div class="flex items-start justify-between mb-3">
+                                <div>
+                                    <p class="font-medium text-gray-800" x-text="ad.ad_name || 'Unnamed Ad'"></p>
+                                    <p class="text-xs text-gray-400 font-mono" x-text="'Ad ID: ' + ad.ad_id"></p>
+                                </div>
+                                <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                      :class="ad.spend > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'"
+                                      x-text="ad.spend > 0 ? 'Active' : 'Inactive'"></span>
+                            </div>
+                            
+                            <div class="grid grid-cols-7 gap-3 text-sm">
+                                <div>
+                                    <p class="text-gray-500">Spend</p>
+                                    <p class="font-semibold text-gray-800" x-text="'฿' + formatNumberFull(ad.spend || 0)"></p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500">Reach</p>
+                                    <p class="font-semibold text-gray-800" x-text="formatNumberFull(ad.reach || 0)"></p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500">Clicks</p>
+                                    <p class="font-semibold text-gray-800" x-text="formatNumberFull(ad.clicks || 0)"></p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500">Results</p>
+                                    <p class="font-semibold text-green-700" x-text="(ad.total_results || 0).toLocaleString()"></p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500">CPR</p>
+                                    <p class="font-semibold text-purple-700" x-text="'฿' + (ad.cost_per_result ? Number(ad.cost_per_result).toFixed(2) : '0.00')"></p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500">CPM</p>
+                                    <p class="font-semibold text-gray-800" x-text="'฿' + (ad.cpm ? ad.cpm.toFixed(2) : '0.00')"></p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-500">CTR</p>
+                                    <p class="font-semibold text-gray-800" x-text="(ad.ctr ? ad.ctr.toFixed(2) : '0.00') + '%'"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- No Ads Message -->
+                    <div x-show="!selectedAdsData.ads_summary || selectedAdsData.ads_summary.length === 0" class="text-center py-8">
+                        <p class="text-gray-500">No ads data available</p>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="flex justify-end mt-6 pt-4 border-t border-gray-100">
+                    <button @click="showAdsDetailModal = false"
+                            class="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-medium transition-colors">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div x-show="toast.show" x-cloak
          x-transition:enter="transition ease-out duration-300 transform"
@@ -387,6 +614,47 @@ function facebookContentsPage() {
             type: 'posts'
         },
 
+        // Ads Detail Modal
+        showAdsDetailModal: false,
+        loadingAds: false,
+        selectedPostCaption: '',
+        selectedAdsData: {
+            ads_count: 0,
+            total_spend: 0,
+            ads_summary: [],
+            ads_insights: []
+        },
+
+        // Computed-like properties for ads
+        get totalAdsReach() {
+            if (!this.selectedAdsData.ads_summary) return 0;
+            return this.selectedAdsData.ads_summary.reduce((sum, ad) => sum + (ad.reach || 0), 0);
+        },
+
+        get totalAdsClicks() {
+            if (!this.selectedAdsData.ads_summary) return 0;
+            return this.selectedAdsData.ads_summary.reduce((sum, ad) => sum + (ad.clicks || 0), 0);
+        },
+
+        get totalAdsResults() {
+            // First try to sum from ads_summary.total_results
+            const summary = this.selectedAdsData.ads_summary;
+            if (summary && summary.length > 0) {
+                const sumFromAds = summary.reduce((sum, ad) => sum + (ad.total_results || 0), 0);
+                if (sumFromAds > 0) return sumFromAds;
+            }
+            
+            // Fallback to cpr_breakdown
+            const breakdown = this.selectedAdsData.cpr_breakdown;
+            if (breakdown) {
+                let total = 0;
+                if (breakdown.OUTCOME_AWARENESS) total += breakdown.OUTCOME_AWARENESS.total_results || 0;
+                if (breakdown.OUTCOME_ENGAGEMENT) total += breakdown.OUTCOME_ENGAGEMENT.total_results || 0;
+                return total;
+            }
+            return 0;
+        },
+
         // Toast
         toast: {
             show: false,
@@ -401,12 +669,12 @@ function facebookContentsPage() {
             this.loadPages();
         },
 
-        // Load available pages from config
+        // Load available pages from legacy DB
         async loadPages() {
             try {
-                const response = await fetch('/api/v1/facebook/config/pages');
+                const response = await fetch('/api/v1/fb-dashboard/pages');
                 const data = await response.json();
-                this.availablePages = data.pages || [];
+                this.availablePages = data.data || [];
                 // Auto-select first page if available
                 if (this.availablePages.length > 0 && !this.syncForm.page_id) {
                     this.syncForm.page_id = this.availablePages[0].id;
@@ -416,7 +684,7 @@ function facebookContentsPage() {
             }
         },
 
-        // Load contents from API
+        // Load contents from legacy FB database via fb-dashboard API
         async loadContents() {
             this.loading = true;
             try {
@@ -428,12 +696,18 @@ function facebookContentsPage() {
                 if (this.filters.search) {
                     params.append('search', this.filters.search);
                 }
+                if (this.filters.post_type) {
+                    params.append('post_type', this.filters.post_type);
+                }
+                if (this.filters.sort) {
+                    params.append('sort', this.filters.sort);
+                }
 
-                const response = await fetch(`/api/v1/facebook/contents?${params}`);
+                const response = await fetch(`/api/v1/fb-dashboard/contents?${params}`);
                 const data = await response.json();
 
                 this.contents = data;
-                this.totalItems = data.length; // TODO: Get from API header
+                this.totalItems = data.length;
 
             } catch (error) {
                 console.error('Error loading contents:', error);
@@ -443,10 +717,10 @@ function facebookContentsPage() {
             }
         },
 
-        // Load stats
+        // Load stats from legacy DB
         async loadStats() {
             try {
-                const response = await fetch('/api/v1/facebook/contents/stats/summary');
+                const response = await fetch('/api/v1/fb-dashboard/contents/stats');
                 const data = await response.json();
 
                 this.stats = {
@@ -518,6 +792,119 @@ function facebookContentsPage() {
             return num.toLocaleString();
         },
 
+        // Format number with 2 decimal places (no abbreviation)
+        formatNumberFull(num) {
+            if (num === null || num === undefined) return '0.00';
+            return parseFloat(num).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        },
+
+        // Calculate CPR from objective data
+        calculateCPR(objData) {
+            if (!objData) return '0.00';
+            const spend = objData.total_spend || 0;
+            const results = objData.total_results || 0;
+            if (results === 0) return '0.00';
+            return (spend / results).toFixed(2);
+        },
+
+        // Calculate average CPR across all ads
+        calculateAvgCPR() {
+            // First try to calculate from ads_summary
+            const summary = this.selectedAdsData.ads_summary;
+            if (summary && summary.length > 0) {
+                let totalSpend = 0;
+                let totalResults = 0;
+                
+                summary.forEach(ad => {
+                    totalSpend += ad.spend || 0;
+                    totalResults += ad.total_results || 0;
+                });
+                
+                if (totalResults > 0) {
+                    return (totalSpend / totalResults).toFixed(2);
+                }
+            }
+            
+            // Fallback to cpr_breakdown
+            const breakdown = this.selectedAdsData.cpr_breakdown;
+            if (breakdown) {
+                let totalSpend = 0;
+                let totalResults = 0;
+                
+                if (breakdown.OUTCOME_AWARENESS) {
+                    totalSpend += breakdown.OUTCOME_AWARENESS.total_spend || 0;
+                    totalResults += breakdown.OUTCOME_AWARENESS.total_results || 0;
+                }
+                if (breakdown.OUTCOME_ENGAGEMENT) {
+                    totalSpend += breakdown.OUTCOME_ENGAGEMENT.total_spend || 0;
+                    totalResults += breakdown.OUTCOME_ENGAGEMENT.total_results || 0;
+                }
+                
+                if (totalResults > 0) {
+                    return (totalSpend / totalResults).toFixed(2);
+                }
+            }
+            
+            return '0.00';
+        },
+
+        // Get results for a single ad
+        // Check total_results field directly in the ad object
+        getAdResults(ad) {
+            // Debug: log ad keys to console
+            console.log('getAdResults - ad keys:', Object.keys(ad));
+            console.log('getAdResults - total_results:', ad.total_results);
+            
+            // Direct field in ads_details - use 'in' operator to check key exists
+            if ('total_results' in ad && ad.total_results !== null) {
+                return Number(ad.total_results);
+            }
+            
+            // Also check 'results' field (alternative name)
+            if ('results' in ad && ad.results !== null) {
+                return Number(ad.results);
+            }
+            
+            // Fallback to cpr_breakdown
+            const breakdown = this.selectedAdsData.cpr_breakdown;
+            if (breakdown && ad.ad_id) {
+                // Search in OUTCOME_AWARENESS
+                if (breakdown.OUTCOME_AWARENESS && breakdown.OUTCOME_AWARENESS.ads) {
+                    const found = breakdown.OUTCOME_AWARENESS.ads.find(a => a.ad_id === ad.ad_id);
+                    if (found && found.results) return Number(found.results);
+                }
+                
+                // Search in OUTCOME_ENGAGEMENT
+                if (breakdown.OUTCOME_ENGAGEMENT && breakdown.OUTCOME_ENGAGEMENT.ads) {
+                    const found = breakdown.OUTCOME_ENGAGEMENT.ads.find(a => a.ad_id === ad.ad_id);
+                    if (found && found.results) return Number(found.results);
+                }
+            }
+            
+            return 0;
+        },
+
+        // Calculate CPR for a single ad (spend / results)
+        // First check if cost_per_result exists in ad, then calculate
+        calculateAdCPR(ad) {
+            // Debug
+            console.log('calculateAdCPR - cost_per_result:', ad.cost_per_result);
+            
+            // Use direct cost_per_result if available and > 0
+            if ('cost_per_result' in ad && ad.cost_per_result !== null && Number(ad.cost_per_result) > 0) {
+                return Number(ad.cost_per_result).toFixed(2);
+            }
+            
+            // Otherwise calculate from spend / results
+            const results = this.getAdResults(ad);
+            if (results === 0 || results === null) return '0.00';
+            const spend = Number(ad.spend) || 0;
+            return (spend / results).toFixed(2);
+        },
+
         formatDate(dateStr) {
             if (!dateStr) return '-';
             const date = new Date(dateStr);
@@ -526,6 +913,54 @@ function facebookContentsPage() {
                 month: 'short',
                 day: 'numeric'
             });
+        },
+
+        copyToClipboard(text) {
+            if (!text) {
+                this.showToast('No URL to copy', 'error');
+                return;
+            }
+            navigator.clipboard.writeText(text).then(() => {
+                this.showToast('Link copied!', 'success');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                this.showToast('Failed to copy link', 'error');
+            });
+        },
+
+        async showAdsModal(content) {
+            this.selectedPostCaption = (content.caption || '').substring(0, 100) + '...';
+            this.loadingAds = true;
+            this.showAdsDetailModal = true;
+            
+            // First show cached data from ads_details and cpr_breakdown
+            this.selectedAdsData = {
+                ads_count: content.ads_count || 0,
+                total_spend: content.ads_total_cost || 0,
+                ads_summary: content.ads_details || [],
+                ads_insights: [],
+                cpr_breakdown: content.cpr_breakdown || null
+            };
+            
+            // Then try to load detailed insights from API
+            try {
+                const response = await fetch(`/api/v1/fb-dashboard/posts/${content.platform_post_id}/ads`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.selectedAdsData = {
+                        ads_count: data.ads_count || content.ads_count || 0,
+                        total_spend: data.total_spend || content.ads_total_cost || 0,
+                        ads_summary: data.ads_summary || content.ads_details || [],
+                        ads_insights: data.ads_insights || [],
+                        cpr_breakdown: data.cpr_breakdown
+                    };
+                }
+            } catch (error) {
+                console.error('Failed to load ads insights:', error);
+                // Keep using cached data if API fails
+            } finally {
+                this.loadingAds = false;
+            }
         },
 
         showToast(message, type = 'success') {
