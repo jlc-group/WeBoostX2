@@ -1,0 +1,498 @@
+{% extends "layouts/app.html" %}
+
+{% block page_title %}TikTok Contents{% endblock %}
+{% block page_subtitle %}จัดการ TikTok Content ทั้งหมด ({{ stats.total | default(0) | int }} รายการ){% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="tiktokDashboard()">
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <!-- Total Posts -->
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Total Posts</p>
+                    <p class="text-2xl font-bold text-gray-800" x-text="formatNumber(stats.total_posts)">-</p>
+                </div>
+                <div class="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Total Views -->
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Total Views</p>
+                    <p class="text-2xl font-bold text-blue-600" x-text="formatBigNumber(stats.total_views)">-</p>
+                </div>
+                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Total Likes -->
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Total Likes</p>
+                    <p class="text-2xl font-bold text-pink-600" x-text="formatBigNumber(stats.total_likes)">-</p>
+                </div>
+                <div class="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Avg PFM Score -->
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">Avg PFM</p>
+                    <p class="text-2xl font-bold text-emerald-600" x-text="stats.avg_pfm_score?.toFixed(2) || '-'">-</p>
+                </div>
+                <div class="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Posts with ACE -->
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">ACE Ads</p>
+                    <p class="text-2xl font-bold text-amber-600" x-text="formatNumber(stats.posts_with_ace)">-</p>
+                </div>
+                <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <span class="text-amber-600 font-bold text-xs">ACE</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Posts with ABX -->
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wide">ABX Ads</p>
+                    <p class="text-2xl font-bold text-violet-600" x-text="formatNumber(stats.posts_with_abx)">-</p>
+                </div>
+                <div class="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+                    <span class="text-violet-600 font-bold text-xs">ABX</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filters & Actions -->
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Content Type Filter -->
+            <select x-model="filters.content_type" @change="loadContents()" 
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white text-sm">
+                <option value="">ทุกประเภท</option>
+                <template x-for="ct in contentTypes" :key="ct.type">
+                    <option :value="ct.type" x-text="`${ct.type} (${ct.count})`"></option>
+                </template>
+            </select>
+            
+            <!-- Content Status Filter -->
+            <select x-model="filters.content_status" @change="loadContents()" 
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white text-sm">
+                <option value="">ทุกสถานะ</option>
+                <template x-for="cs in contentStatuses" :key="cs.status">
+                    <option :value="cs.status" x-text="`${cs.status} (${cs.count})`"></option>
+                </template>
+            </select>
+            
+            <!-- Search -->
+            <div class="relative flex-1 min-w-[200px]">
+                <input type="text" x-model="filters.search" @input.debounce.500ms="loadContents()"
+                       placeholder="ค้นหา caption, item_id..."
+                       class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white text-sm">
+                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+            
+            <!-- Sort By -->
+            <select x-model="filters.sort_by" @change="loadContents()" 
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white text-sm">
+                <option value="video_views">เรียงตาม Views</option>
+                <option value="pfm_score">เรียงตาม PFM</option>
+                <option value="likes">เรียงตาม Likes</option>
+                <option value="create_time">เรียงตาม วันที่สร้าง</option>
+            </select>
+            
+            <!-- Page Size -->
+            <select x-model="pageSize" @change="loadContents()" 
+                    class="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-primary-500 bg-white text-sm">
+                <option value="20">20 / หน้า</option>
+                <option value="50">50 / หน้า</option>
+                <option value="100">100 / หน้า</option>
+            </select>
+        </div>
+    </div>
+    
+    <!-- Content Type Distribution -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- By Content Type -->
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <h3 class="font-semibold text-gray-800 mb-4">📊 Content Type Distribution</h3>
+            <div class="space-y-2">
+                <template x-for="(count, type) in stats.by_content_type" :key="type">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600" x-text="type"></span>
+                        <div class="flex items-center gap-2">
+                            <div class="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div class="h-full bg-primary-500 rounded-full" 
+                                     :style="`width: ${(count / stats.total_posts * 100)}%`"></div>
+                            </div>
+                            <span class="text-sm font-medium text-gray-800 w-16 text-right" x-text="formatNumber(count)"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        
+        <!-- By Content Status -->
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+            <h3 class="font-semibold text-gray-800 mb-4">📈 Content Status Distribution</h3>
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+                <template x-for="(count, status) in stats.by_content_status" :key="status">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-600" x-text="status"></span>
+                        <div class="flex items-center gap-2">
+                            <div class="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div class="h-full bg-emerald-500 rounded-full" 
+                                     :style="`width: ${(count / stats.total_posts * 100)}%`"></div>
+                            </div>
+                            <span class="text-sm font-medium text-gray-800 w-16 text-right" x-text="formatNumber(count)"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Content Table -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Content</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Views</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Likes</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Comments</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">PFM</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ads</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-if="loading">
+                        <tr>
+                            <td colspan="8" class="px-4 py-8 text-center">
+                                <div class="flex items-center justify-center gap-2 text-gray-500">
+                                    <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span>Loading...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="!loading && contents.length === 0">
+                        <tr>
+                            <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                                ไม่พบข้อมูล
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-for="content in contents" :key="content.item_id">
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <!-- Content -->
+                            <td class="px-4 py-3">
+                                <div class="flex items-start gap-3">
+                                    <!-- Clickable Thumbnail -->
+                                    <a :href="content.url || ('https://www.tiktok.com/@user/video/' + content.item_id)" 
+                                       target="_blank"
+                                       class="w-16 h-20 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 relative group hover:ring-2 hover:ring-pink-500 transition-all"
+                                       title="ดูวิดีโอบน TikTok">
+                                        <!-- Thumbnail Image with fallback -->
+                                        <img :src="content.thumbnail_url" 
+                                             class="w-full h-full object-cover"
+                                             :alt="content.item_id"
+                                             @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'">
+                                        <!-- TikTok Logo Fallback (hidden by default) -->
+                                        <div class="absolute inset-0 bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 items-center justify-center hidden">
+                                            <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
+                                            </svg>
+                                        </div>
+                                        <!-- Play Icon Overlay -->
+                                        <div class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M8 5v14l11-7z"/>
+                                            </svg>
+                                        </div>
+                                    </a>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm text-gray-800 line-clamp-2" x-text="content.caption || 'No caption'"></p>
+                                        <div class="mt-1 flex items-center gap-2 flex-wrap">
+                                            <span class="text-xs text-gray-400 font-mono" x-text="content.item_id"></span>
+                                            <span x-show="content.create_time" class="text-xs text-gray-400">
+                                                • <span x-text="formatDate(content.create_time)"></span>
+                                            </span>
+                                        </div>
+                                        <div x-show="content.products" class="mt-1">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" x-text="content.products"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <!-- Views -->
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm font-medium text-gray-800" x-text="formatNumber(content.video_views)"></span>
+                            </td>
+                            <!-- Likes -->
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm text-gray-600" x-text="formatNumber(content.likes)"></span>
+                            </td>
+                            <!-- Comments -->
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm text-gray-600" x-text="formatNumber(content.comments)"></span>
+                            </td>
+                            <!-- PFM -->
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm font-medium" 
+                                      :class="content.pfm_score >= 1 ? 'text-emerald-600' : content.pfm_score >= 0.5 ? 'text-amber-600' : 'text-gray-600'"
+                                      x-text="content.pfm_score?.toFixed(2) || '-'"></span>
+                            </td>
+                            <!-- Type -->
+                            <td class="px-4 py-3 text-center">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                      :class="{
+                                          'bg-purple-100 text-purple-800': content.content_type === 'SALE',
+                                          'bg-blue-100 text-blue-800': content.content_type === 'REVIEW',
+                                          'bg-pink-100 text-pink-800': content.content_type === 'BRANDING',
+                                          'bg-gray-100 text-gray-800': !content.content_type || content.content_type === 'T_WAITING'
+                                      }"
+                                      x-text="content.content_type || '-'"></span>
+                            </td>
+                            <!-- Status -->
+                            <td class="px-4 py-3 text-center">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                      :class="{
+                                          'bg-green-100 text-green-800': content.content_status === 'OPEN',
+                                          'bg-amber-100 text-amber-800': content.content_status === 'ACE_AD' || content.content_status === 'ABX_AD',
+                                          'bg-red-100 text-red-800': content.content_status === 'CLOSE' || content.content_status === 'DELETED',
+                                          'bg-gray-100 text-gray-800': !content.content_status
+                                      }"
+                                      x-text="content.content_status || '-'"></span>
+                            </td>
+                            <!-- Ads -->
+                            <td class="px-4 py-3 text-center">
+                                <div class="flex items-center justify-center gap-1">
+                                    <span x-show="content.ace_ad_count > 0" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                                        ACE: <span x-text="content.ace_ad_count"></span>
+                                    </span>
+                                    <span x-show="content.abx_ad_count > 0" class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-800">
+                                        ABX: <span x-text="content.abx_ad_count"></span>
+                                    </span>
+                                    <span x-show="!content.ace_ad_count && !content.abx_ad_count" class="text-gray-400">-</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            <div class="text-sm text-gray-600">
+                แสดง <span class="font-medium" x-text="((currentPage - 1) * pageSize) + 1"></span>
+                - <span class="font-medium" x-text="Math.min(currentPage * pageSize, totalItems)"></span>
+                จาก <span class="font-medium" x-text="formatNumber(totalItems)"></span> รายการ
+            </div>
+            <div class="flex items-center gap-2">
+                <button @click="prevPage()" :disabled="currentPage <= 1"
+                        class="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100">
+                    ก่อนหน้า
+                </button>
+                <span class="text-sm text-gray-600">
+                    หน้า <span x-text="currentPage"></span> / <span x-text="totalPages"></span>
+                </span>
+                <button @click="nextPage()" :disabled="currentPage >= totalPages"
+                        class="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100">
+                    ถัดไป
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function tiktokDashboard() {
+    return {
+        loading: true,
+        stats: {
+            total_posts: 0,
+            total_views: 0,
+            total_likes: 0,
+            total_comments: 0,
+            total_shares: 0,
+            total_bookmarks: 0,
+            avg_pfm_score: 0,
+            by_content_type: {},
+            by_content_status: {},
+            posts_with_ace: 0,
+            posts_with_abx: 0
+        },
+        contents: [],
+        contentTypes: [],
+        contentStatuses: [],
+        filters: {
+            content_type: '',
+            content_status: '',
+            search: '',
+            sort_by: 'create_time'
+        },
+        currentPage: 1,
+        pageSize: 20,
+        totalItems: 0,
+        totalPages: 1,
+        
+        init() {
+            this.loadStats();
+            this.loadContentTypes();
+            this.loadContentStatuses();
+            this.loadContents();
+        },
+        
+        async loadStats() {
+            try {
+                const response = await fetch('/api/v1/tiktok/stats');
+                const data = await response.json();
+                if (data.success) {
+                    this.stats = data.data;
+                }
+            } catch (err) {
+                console.error('Error loading stats:', err);
+            }
+        },
+        
+        async loadContentTypes() {
+            try {
+                const response = await fetch('/api/v1/tiktok/content-types');
+                const data = await response.json();
+                if (data.success) {
+                    this.contentTypes = data.data;
+                }
+            } catch (err) {
+                console.error('Error loading content types:', err);
+            }
+        },
+        
+        async loadContentStatuses() {
+            try {
+                const response = await fetch('/api/v1/tiktok/content-statuses');
+                const data = await response.json();
+                if (data.success) {
+                    this.contentStatuses = data.data;
+                }
+            } catch (err) {
+                console.error('Error loading content statuses:', err);
+            }
+        },
+        
+        async loadContents() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams({
+                    page: this.currentPage,
+                    page_size: this.pageSize,
+                    sort_by: this.filters.sort_by
+                });
+                
+                if (this.filters.content_type) params.set('content_type', this.filters.content_type);
+                if (this.filters.content_status) params.set('content_status', this.filters.content_status);
+                if (this.filters.search) params.set('search', this.filters.search);
+                
+                const response = await fetch(`/api/v1/tiktok/contents?${params}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.contents = data.data;
+                    this.totalItems = data.total;
+                    this.totalPages = Math.ceil(data.total / this.pageSize);
+                }
+            } catch (err) {
+                console.error('Error loading contents:', err);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        prevPage() {
+            if (this.currentPage > 1) {
+                this.currentPage--;
+                this.loadContents();
+            }
+        },
+        
+        nextPage() {
+            if (this.currentPage < this.totalPages) {
+                this.currentPage++;
+                this.loadContents();
+            }
+        },
+        
+        formatNumber(num) {
+            if (num === undefined || num === null) return '-';
+            return new Intl.NumberFormat('th-TH').format(num);
+        },
+        
+        formatBigNumber(num) {
+            if (num === undefined || num === null) return '-';
+            if (num >= 1e9) return (num / 1e9).toFixed(1) + 'B';
+            if (num >= 1e6) return (num / 1e6).toFixed(1) + 'M';
+            if (num >= 1e3) return (num / 1e3).toFixed(1) + 'K';
+            return num.toString();
+        },
+        
+        formatDate(dateStr) {
+            if (!dateStr) return '-';
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

@@ -58,6 +58,27 @@ from app.models.spark_auth import SparkAdAuth, SparkAuthImportLog, SparkAuthStat
 # System models
 from app.models.system import AppSetting
 
+# TikTok Legacy models (for backward compatibility with starcontent DB)
+from app.models.tiktok_legacy import (
+    TiktokPost,
+    ABXAdgroupLegacy,
+    TiktokTargeting,
+    ProductGroupLegacy,
+    ProductLegacy,
+    DailyAdSpend,
+)
+
+# Facebook Legacy models (for local PostgreSQL DB)
+from app.models.facebook_legacy import (
+    FacebookPostPerformance,
+    FacebookCampaign,
+    FacebookAdset,
+    FacebookAd,
+    FacebookAdsInsights,
+    FacebookPage,
+    FacebookPost,
+)
+
 # Targeting Cache models
 from app.models.targeting_cache import (
     TikTokActionCategory,
@@ -118,4 +139,7 @@ __all__ = [
     
     # Spark Ad Auth
     "SparkAdAuth", "SparkAuthImportLog", "SparkAuthStatus",
+    
+    # TikTok Legacy (backward compatibility)
+    "TiktokPost", "ABXAdgroupLegacy", "TiktokTargeting", "ProductGroupLegacy", "ProductLegacy",
 ]
